@@ -409,8 +409,8 @@ function FindDeal(){return`<div class="pagefade space-y-4 text-center">
  <input type="file" id="f_img" accept="image/*" capture="environment" class="hidden" onchange="upload(this)">
  <input type="file" id="f_img2" accept="image/*" capture="environment" multiple class="hidden" onchange="upload(this,true)">
  <div class="mx-auto max-w-sm text-left">${Inp('q_price','ราคาที่แม่ค้าบอก (฿) — กรอกก่อนหรือหลังถ่ายก็ได้','เช่น 300','','number').replace('<input ','<input inputmode="numeric" oninput="const f=document.getElementById(\'f_price\');if(f)f.value=this.value" ')}</div>
- ${API.url()&&API.key()?'':Card(`<div class="text-left"><div class="text-sm font-bold">ตั้งค่าเซิร์ฟเวอร์ครั้งแรก</div><div class="mt-1 text-xs text-slate-500">ใส่ลิงก์ Worker ที่ติดตั้งตามคู่มือ (ครั้งเดียว)</div>
- <div class="mt-3 space-y-2">${Inp('s_url','ลิงก์ Worker','https://deal-hunter.xxx.workers.dev',API.url())}${Inp('s_key','รหัสแอป (ดูในไฟล์ ข้อมูลเข้าระบบ.txt)','')}</div>
+ ${API.url()&&API.key()?'':Card(`<div class="text-left"><div class="text-sm font-bold">ตั้งค่าเซิร์ฟเวอร์ครั้งแรก</div><div class="mt-1 text-xs text-slate-500">ที่อยู่เซิร์ฟเวอร์กรอกไว้ให้แล้ว ใส่แค่รหัสแอป (ครั้งเดียวต่อเครื่อง)</div>
+ <div class="mt-3 space-y-2">${Inp('s_url','ที่อยู่เซิร์ฟเวอร์ (ไม่ต้องแก้)','https://deal-hunter.xxx.workers.dev',API.url())}${Inp('s_key','รหัสแอป (ค่า APP_KEY ในตาราง app_config ของ Supabase)','')}</div>
  <button onclick="saveSetup()" class="tapscale mt-3 w-full rounded-xl bg-brand-500 py-2.5 text-sm font-bold text-white">บันทึก</button></div>`,'ring-2 ring-amber-500/40')}
  <div class="text-center mt-3"><button onclick="document.getElementById('manual_entry').open = true; document.getElementById('manual_entry').scrollIntoView({behavior:'smooth'})" class="text-xs font-semibold text-slate-500 underline decoration-slate-300 underline-offset-4">หรือ พิมพ์ข้อมูลเองโดยไม่ใช้กล้อง</button></div>
  <div id="result" class="space-y-3 mt-6 text-left">${ana?Result(ana):''}</div>

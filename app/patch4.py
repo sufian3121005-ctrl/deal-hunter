@@ -65,3 +65,12 @@ rep("function saveSetup(){localStorage.setItem('deal_api_url',V('s_url'));localS
 rep("<title>Deal Hunter v2</title>","<title>Deal Hunter</title>")
 open('deal-hunter-v2.html','w',encoding='utf-8').write(s)
 print('ok',len(s))
+
+# ป้ายหน้าตั้งค่าให้ตรงกับระบบ Supabase
+s=open('deal-hunter-v2.html',encoding='utf-8').read()
+import re
+s=s.replace("ใส่ลิงก์ Worker ที่ติดตั้งตามคู่มือ (ครั้งเดียว)","ที่อยู่เซิร์ฟเวอร์กรอกไว้ให้แล้ว ใส่แค่รหัสแอป (ครั้งเดียวต่อเครื่อง)")
+s=s.replace("'ลิงก์ Worker'","'ที่อยู่เซิร์ฟเวอร์ (ไม่ต้องแก้)'")
+s=re.sub(r"รหัสแอป \(ดูในไฟล์[^)]*\)","รหัสแอป (ค่า APP_KEY ในตาราง app_config ของ Supabase)",s)
+open('deal-hunter-v2.html','w',encoding='utf-8').write(s)
+print('labels ok')
