@@ -269,9 +269,11 @@ add('fb-thailand', F, 'genre', 'เสื้อทีมชาติไทย', 
           'ราคาป้าย Warrix ฤดูกาล 2023/24: Player 2,490 บาท, Replica 890 บาท, เสื้อเชียร์ 399 บาท'],
     red_flags=['เสื้อเชียร์ราคาถูกไม่ใช่เสื้อแข่ง อย่าตีราคาเท่ารุ่น Player'], src=['ktc_thai', 'bkbiz_warrix', 'cfs_thai100'])
 
+exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kb_extra.py'), encoding='utf-8').read())
+
 # ============ เขียนไฟล์ ============
 here = os.path.dirname(os.path.abspath(__file__))
-kb = {'version': '2026-11-07', 'categories': [T, D, F], 'entries': E}
+kb = {'version': '2026-11-07', 'categories': sorted({e['category'] for e in E}), 'entries': E}
 json.dump(kb, open(os.path.join(here, 'apparel-kb.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 
 def q(x): return "'" + str(x).replace("'", "''") + "'"
