@@ -1,0 +1,675 @@
+<!DOCTYPE html><html lang="th"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AI Deal Hunter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>tailwind.config={darkMode:'class',theme:{extend:{colors:{brand:{300:'#6ee7b7',400:'#34d399',500:'#10b981',600:'#059669',700:'#047857'},ink:{950:'#05070d',900:'#0a0e1a',850:'#0d1220',800:'#111827',700:'#1c2333'}},fontFamily:{sans:['"Noto Sans Thai"','system-ui']},boxShadow:{glow:'0 0 40px -10px rgba(16,185,129,.35)',card:'0 8px 30px -12px rgba(0,0,0,.35)'}}}}</script>
+<style>
+*{-webkit-tap-highlight-color:transparent}
+body{background:radial-gradient(1200px 600px at 15% -10%,rgba(16,185,129,.08),transparent),radial-gradient(1000px 500px at 100% 0%,rgba(56,189,248,.08),transparent),#f1f5f9}
+.glass{background:rgba(255,255,255,.75);backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,.06);box-shadow:0 2px 16px rgba(0,0,0,.06)}
+.pagefade{animation:fadein .28s ease both}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.tapscale:active{transform:scale(.96)}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
+input,select,textarea{outline:none}
+.ring-grad{background:conic-gradient(var(--c,#10b981) calc(var(--p,0)*1%),rgba(148,163,184,.15) 0)}
+.seg{transition:all .18s ease}
+.chip{transition:all .15s ease}
+</style>
+</head>
+<body class="text-slate-800 dark:text-slate-100 font-sans min-h-dvh pb-28">
+
+<!-- TOP BAR -->
+<header class="sticky top-0 z-40 px-3 pt-3">
+ <div class="mx-auto flex max-w-6xl items-center gap-2 rounded-2xl glass px-3 py-2.5">
+  <a href="#" onclick="go('/')" class="flex items-center gap-2 shrink-0">
+   <span class="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-teal-500 text-white shadow-glow">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+   </span>
+   <span class="hidden sm:block font-bold tracking-tight text-slate-800">Deal Hunter</span>
+  </a>
+  <div class="ml-auto flex items-center gap-1.5">
+   <span id="quota" class="hidden sm:flex items-center gap-1 rounded-full bg-black/5 px-2.5 py-1 text-[11px] text-slate-500"></span>
+   <button onclick="Store.reset()" class="tapscale rounded-full bg-black/5 px-2.5 py-1.5 text-[11px] text-slate-500">รีเซ็ต</button>
+  </div>
+ </div>
+</header>
+
+<div class="mx-auto flex max-w-6xl gap-4 px-3">
+ <aside class="hidden md:block w-56 shrink-0 pt-4"><nav class="space-y-1 sticky top-20" id="side"></nav></aside>
+ <main class="w-full flex-1 pt-4" id="main"></main>
+</div>
+
+<!-- FLOATING BOTTOM NAV -->
+<nav class="fixed inset-x-0 bottom-3 z-40 px-3 md:hidden">
+ <div class="mx-auto flex max-w-sm items-center justify-between rounded-[26px] glass px-2 py-2 shadow-card" id="bot"></div>
+</nav>
+
+<script>
+/* ============ i18n / format ============ */
+const ic=(n,s='w-5 h-5 inline-block')=>`<i data-lucide="${n}" class="${s}" stroke-width="1.75"></i>`;
+
+const T={status:{analyzing:'กำลังวิเคราะห์',watching:'กำลังติดตาม',negotiating:'กำลังต่อราคา',purchased:'ซื้อแล้ว',listed:'ลงประกาศแล้ว',sold:'ขายแล้ว',passed:'ผ่าน',lost:'พลาดดีล'},
+decision:{BUY:'ซื้อได้',NEGOTIATE:'ควรต่อราคา',FIND_BUYER_FIRST:'หาผู้ซื้อก่อน',PASS:'ไม่แนะนำ'},
+cond:{new:'ใหม่',like_new:'เหมือนใหม่',good:'ดี',fair:'พอใช้',poor:'ต้องซ่อม',unknown:'ไม่ทราบ'},
+buyer:{consumer:'ผู้ใช้ทั่วไป',technician:'ช่างเทคนิค',contractor:'ผู้รับเหมา',dealer:'พ่อค้าคนกลาง',shop:'ร้านค้า',rental_business:'ธุรกิจให้เช่า',reseller:'คนขายต่อ',business_owner:'เจ้าของกิจการ'}};
+const money=n=>n==null||isNaN(n)?'—':'฿'+Math.round(n).toLocaleString('th-TH');
+const sgn=n=>n==null?'—':(n>=0?'+':'−')+money(Math.abs(n));
+const pct=(n,d=1)=>n==null||isNaN(n)?'—':n.toFixed(d)+'%';
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+const BAND=s=>s>=90?'excellent':s>=80?'good':s>=65?'negotiate':s>=50?'buyerFirst':'pass';
+const BM={excellent:{e:'trending-up',l:'ดีลยอดเยี่ยม',c:'#10b981',tx:'text-emerald-500',bg:'bg-emerald-500/10',ring:'ring-emerald-500/30'},
+good:{e:'check-circle-2',l:'ดีลดี',c:'#22c55e',tx:'text-green-500',bg:'bg-green-500/10',ring:'ring-green-500/30'},
+negotiate:{e:'minus-circle',l:'ควรต่อราคา',c:'#f59e0b',tx:'text-amber-500',bg:'bg-amber-500/10',ring:'ring-amber-500/30'},
+buyerFirst:{e:'users',l:'หาผู้ซื้อก่อน',c:'#38bdf8',tx:'text-sky-500',bg:'bg-sky-500/10',ring:'ring-sky-500/30'},
+pass:{e:'x-circle',l:'ไม่แนะนำ',c:'#f43f5e',tx:'text-rose-500',bg:'bg-rose-500/10',ring:'ring-rose-500/30'}};
+const bm=s=>BM[BAND(s)];
+
+const CAT={'tools.power':{th:'เครื่องมือช่าง',icon:'wrench',liq:85,fee:5,transport:30,fake:25,repair:35,days:7,decay:1,check:['แปรงถ่าน','เสียงมอเตอร์','สายไฟ/ปลั๊ก','หัวจับดอก']},
+'phone':{th:'มือถือ',icon:'smartphone',liq:90,fee:6,transport:10,fake:45,repair:50,days:5,decay:2.5,check:['IMEI/สถานะล็อก','สุขภาพแบต','จอมีเงา/เส้น','กล้องทุกตัว']},
+'appliance':{th:'เครื่องใช้ไฟฟ้า',icon:'plug',liq:70,fee:5,transport:55,fake:20,repair:45,days:12,decay:1.5,check:['เปิดติดจริง','เสียงผิดปกติ','อะไหล่หาได้ไหม']},
+'generator':{th:'เครื่องยนต์/ปั่นไฟ',icon:'zap',liq:55,fee:5,transport:80,fake:20,repair:60,days:21,decay:1,check:['สตาร์ทติด','ควันสี','ชั่วโมงใช้งาน','น้ำมันรั่ว']},
+'bike':{th:'จักรยาน',icon:'bike',liq:45,fee:5,transport:65,fake:30,repair:40,days:25,decay:0.5,check:['เฟรมร้าว','ชุดขับเคลื่อน','เลขเฟรม']},
+'furniture':{th:'เฟอร์นิเจอร์',icon:'sofa',liq:40,fee:4,transport:90,fake:10,repair:30,days:30,decay:0.3,check:['ปลวก/เชื้อรา','โครงสร้าง','ขนย้ายเข้าประตูได้ไหม']},
+'generic':{th:'ทั่วไป',icon:'package',liq:50,fee:5,transport:50,fake:25,repair:40,days:18,decay:1.2,check:['สภาพโดยรวม','ครบชุดไหม','ทดสอบใช้งานได้']}};
+
+const CATALOG=[
+{kw:['makita','hr2470','สว่านโรตารี'],name:'Makita HR2470 สว่านโรตารี่ 24mm',brand:'Makita',model:'HR2470',cat:'tools.power',sold:[5800,6200,6500,7200,6800],list:[5500,7900,8900],conf:88},
+{kw:['makita','ddf484'],name:'Makita DDF484 สว่านไร้สาย',brand:'Makita',model:'DDF484',cat:'tools.power',sold:[4600,5000,5400],list:[4300,5800],conf:82},
+{kw:['iphone 13 pro','iphone13pro'],name:'iPhone 13 Pro 256GB',brand:'Apple',model:'13 Pro 256GB',cat:'phone',sold:[17500,18200,19000,18800],list:[16900,21000,22500],conf:92},
+{kw:['honda','eu22','เครื่องปั่นไฟ'],name:'Honda EU22i เครื่องปั่นไฟ',brand:'Honda',model:'EU22i',cat:'generator',sold:[38000,42000],list:[36000,45000,48000],conf:80},
+{kw:['dyson','v11'],name:'Dyson V11 เครื่องดูดฝุ่นไร้สาย',brand:'Dyson',model:'V11',cat:'appliance',sold:[8900,9800,10200],list:[8500,12000],conf:85},
+{kw:['trek','จักรยาน','bike'],name:'จักรยานเสือหมอบ Trek',brand:'Trek',model:'—',cat:'bike',sold:[9200],list:[8900,11000,12500],conf:58}];
+const findCat=q=>CATALOG.find(c=>c.kw.some(k=>q.toLowerCase().includes(k)))||null;
+
+/* ============ Engine ============ */
+const Engine={
+ evidence(list){const sold=list.filter(e=>e.type==='sold'&&e.use).map(e=>+e.price).sort((a,b)=>a-b);
+  const lst=list.filter(e=>e.type==='listing'&&e.use).map(e=>+e.price).sort((a,b)=>a-b);
+  const est=list.filter(e=>e.type==='estimate'&&e.use).map(e=>+e.price).sort((a,b)=>a-b);
+  let tier='none',conf=0,base=sold.length?sold:(lst.length?lst:est);
+  if(sold.length>=5){tier='sold';conf=90}else if(sold.length>=3){tier='sold';conf=78}
+  else if(sold.length>=1){tier='sold';conf=62}else if(lst.length>=2){tier='listing';conf=52}
+  else if(est.length){tier='ai_only';conf=42}
+  if(tier==='listing')base=lst.map(p=>p*0.88);
+  if(!base.length)return{tier:'none',conf:0,low:null,mid:null,high:null,soldN:0,listN:lst.length};
+  const s=[...base].sort((a,b)=>a-b),q=f=>s[Math.min(s.length-1,Math.floor(f*(s.length-1)))];
+  return{tier,conf,low:q(0),mid:s.length>2?q(.5):(s[0]+s[s.length-1])/2,high:q(1),soldN:sold.length,listN:lst.length};},
+ valuation(ev,cond){const adj={new:1.15,like_new:1.08,good:1,fair:.85,poor:.6,unknown:.9}[cond]||1;
+  if(ev.mid==null)return{};const mid=ev.mid*adj;
+  return{low:ev.low*adj,mid,high:ev.high*adj,fairBuy:mid*.5,maxBuy:mid*.65,target:mid*.92};},
+ cost(d){const c=CAT[d.cat]||CAT.generic;
+  const transport=d.transport?+d.transport:Math.round((+d.km||0)*8+(c.transport>60?200:60));
+  const fee=Math.round((d.target||0)*c.fee/100);
+  const labor=Math.round((+d.hours||0)*(+d.rate||300));
+  const t={purchase:+d.price||0,transport,repair:+d.repair||0,cleaning:+d.cleaning||0,fee,pack:+d.pack||(c.transport>60?200:80),other:+d.other||0,labor};
+  t.total=t.purchase+t.transport+t.repair+t.cleaning+t.fee+t.pack+t.other+t.labor;return t;},
+ score(x){const c=CAT[x.cat]||CAT.generic;const roi=x.cost.total>0?(x.profit/x.cost.total)*100:0;const f={};
+  f['กำไรที่เป็นไปได้']=Math.max(0,Math.min(100,roi*1.8));
+  f['ส่วนลดจากราคาตลาด']=x.mid?Math.max(0,Math.min(100,(1-x.price/x.mid)*180)):0;
+  f['ความต้องการตลาด']=c.liq;f['ความเร็วในการขาย']=Math.max(0,100-c.days*3);
+  f['ความเสี่ยง (กลับด้าน)']=100-x.risk;
+  f['ผลกระทบค่าขนส่ง']=x.cost.total>0?Math.max(0,100-(x.cost.transport/x.cost.total)*400):50;
+  f['สภาพสินค้า']={new:100,like_new:92,good:78,fair:60,poor:35,unknown:50}[x.cond]||50;
+  f['ความมั่นใจราคา']=x.conf;
+  const W={'กำไรที่เป็นไปได้':.25,'ส่วนลดจากราคาตลาด':.15,'ความต้องการตลาด':.15,'ความเร็วในการขาย':.10,'ความเสี่ยง (กลับด้าน)':.15,'ผลกระทบค่าขนส่ง':.05,'สภาพสินค้า':.05,'ความมั่นใจราคา':.10};
+  let s=Object.keys(W).reduce((a,k)=>a+f[k]*W[k],0);const caps=[];
+  if(x.conf<40){s=Math.min(s,64);caps.push('ความมั่นใจราคาต่ำกว่า 40% → จำกัดคะแนนไว้ที่ 64')}
+  if(x.tier==='listing'){s=Math.min(s,79);caps.push('มีแต่ราคาประกาศ ไม่มีราคาขายจริง → จำกัดที่ 79')}
+  if(x.tier==='ai_only'){s=Math.min(s,64);caps.push('ไม่มีหลักฐานราคาจากตลาดจริง → จำกัดที่ 64')}
+  if(x.soldN<3&&x.soldN>0){s-=8;caps.push('ข้อมูลขายจริงน้อยกว่า 3 จุด → หัก 8 คะแนน')}
+  if(x.profit<=0){s=Math.min(s,35);caps.push('กำไรประมาณการติดลบ → จำกัดที่ 35')}
+  return{score:Math.max(0,Math.round(s)),factors:f,caps,roi};},
+ risk(x){const c=CAT[x.cat]||CAT.generic;let r=(100-c.liq)*.3+c.fake*.25+c.repair*.2+(100-x.conf)*.25;
+  if(x.price>30000)r+=8;if(x.cond==='poor')r+=10;if(x.cond==='unknown')r+=6;
+  return Math.max(0,Math.min(100,Math.round(r)));},
+ decide(s,x){let d=s>=80?'BUY':s>=65?'NEGOTIATE':s>=50?'FIND_BUYER_FIRST':'PASS';const why=[];const c=CAT[x.cat]||CAT.generic;
+  if(x.mid)why.push(`ราคาเจ้าของ ${money(x.price)} เทียบราคาตลาดกลาง ${money(x.mid)} = ${x.price<x.mid?'ต่ำกว่า '+pct((1-x.price/x.mid)*100,0):'สูงกว่าตลาด'}`);
+  why.push(x.soldN>0?`อ้างอิงราคาขายจริง ${x.soldN} จุด${x.listN?' + ราคาประกาศ '+x.listN+' จุด':''} → ความมั่นใจ ${x.conf}%`:`⚠️ ไม่มีข้อมูลราคาขายจริง → ความมั่นใจเพียง ${x.conf}%`);
+  why.push(`หมวด${c.th}: ความต้องการ ${c.liq}/100 · ขายเฉลี่ย ~${c.days} วัน`);
+  why.push(`ต้นทุนรวม ${money(x.cost.total)} (ขนส่ง ${money(x.cost.transport)} · ค่าแรง ${money(x.cost.labor)}) → กำไร ${sgn(x.profit)} · ROI ${pct(x.roi)}`);
+  why.push(`ความเสี่ยง ${x.risk}/100 · ${x.risk>60?'สูง ควรตรวจสอบละเอียด':x.risk>35?'ปานกลาง':'ต่ำ'}`);
+  if(x.price>=30000&&c.liq<75&&d==='BUY'){d='FIND_BUYER_FIRST';why.push('🔵 ราคาสูงเกิน ฿30,000 + สภาพคล่องไม่สูง → บังคับหาผู้ซื้อก่อน')}
+  if(x.risk>=70&&d==='BUY'){d='NEGOTIATE';why.push('⚠️ ความเสี่ยงสูง → ลดระดับเป็นควรต่อราคา')}
+  if(x.roi<20&&d==='BUY'){d='NEGOTIATE';why.push('ROI ต่ำกว่า 20% → ควรต่อรองราคาเพิ่ม')}
+  if(x.profit<=0){d='PASS';why.push('🔴 กำไรติดลบหลังหักต้นทุนทั้งหมด')}
+  return{decision:d,why};}};
+
+const Learn={
+ history(){return Store.all().filter(d=>d.actualProfit!=null)},
+ similar(brand,model){const h=this.history();
+  return{exact:h.filter(d=>d.brand&&brand&&d.brand.toLowerCase().trim()===brand.toLowerCase().trim()
+   &&d.model&&model&&d.model.toLowerCase().trim()===model.toLowerCase().trim())};},
+ blendedPrice(aiMid,sim){if(!sim.exact.length)return{mid:aiMid,source:'ai',n:0};
+  const avgSell=sim.exact.reduce((a,d)=>a+d.actualSell,0)/sim.exact.length;
+  if(!aiMid)return{mid:avgSell,source:'history',n:sim.exact.length,avgSell};
+  const w=Math.min(.85,.3+sim.exact.length*.15);
+  return{mid:aiMid*(1-w)+avgSell*w,source:'blended',n:sim.exact.length,avgSell};},
+ skillMap(){const h=this.history();const g={};
+  h.forEach(d=>{g[d.cat]=g[d.cat]||{n:0,wins:0,profit:0,cost:0,days:0};const x=g[d.cat];
+   x.n++;if(d.actualProfit>0)x.wins++;x.profit+=d.actualProfit;x.cost+=(d.actualCost||d.cost.total)||1;x.days+=(d.actualDays||CAT[d.cat].days);});
+  return Object.entries(g).map(([cat,x])=>{const roi=x.profit/x.cost*100;const avgDays=x.days/x.n||1;
+   return{cat,name:CAT[cat].th,n:x.n,winRate:x.wins/x.n*100,roi,avgDays,ann:roi*(365/avgDays),avgCost:x.cost/x.n};})
+   .sort((a,b)=>b.ann-a.ann);},
+ negativePatterns(){const h=this.history().filter(d=>d.actualProfit<0);const g={};
+  h.forEach(d=>{const far=d.km>20;const key=d.cat+(far?'|far':'');
+   g[key]=g[key]||{cat:d.cat,n:0,note:far?'ค่าขนส่งไกลกินกำไรจนขาดทุน':'ขาดทุนซ้ำในหมวดนี้'};g[key].n++});
+  return Object.values(g);},
+ decayInfo(d){if(['sold','passed','lost'].includes(d.status))return null;
+  const days=(Date.now()-d.createdAt)/86400000;const rate=(CAT[d.cat]?.decay||1.2)/7;
+  const lost=Math.min(40,days*rate);return{days:Math.floor(days),lostPct:lost,currentValue:d.target*(1-lost/100)};}};
+
+const Cash={get(){const capital=Store.d.settings.capital||0;
+  const locked=Store.all().filter(d=>['purchased','listed'].includes(d.status)).reduce((a,d)=>a+(d.actualCost||d.cost.total),0);
+  return{capital,locked,available:capital-locked,lockedPct:capital?locked/capital*100:0};}};
+
+const AI={
+ parseEvidence(text){if(!text||!text.trim())return[];
+  return text.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+   const m=l.match(/([\d,]{3,})/g);if(!m)return null;
+   const price=+m.map(x=>+x.replace(/,/g,'')).filter(x=>x>=100).sort((a,b)=>b-a)[0];if(!price)return null;
+   const sold=/ขายแล้ว|ปิดการขาย|sold|ขายไปแล้ว|จบ/i.test(l);
+   return{id:uid(),price,type:sold?'sold':'listing',note:l.slice(0,60),use:true};}).filter(Boolean);},
+ identify(inp){const hit=findCat(`${inp.name} ${inp.brand} ${inp.model}`);
+  if(hit)return{name:hit.name,brand:hit.brand,model:hit.model,cat:hit.cat,conf:hit.conf,seed:hit};
+  return{name:inp.name||'สินค้าไม่ระบุ',brand:inp.brand||'ไม่ทราบ',model:inp.model||'ไม่ทราบ',cat:'generic',conf:inp.name?45:25,seed:null};},
+ market(id,pasted){if(pasted.length)return pasted;
+  if(id.seed)return id.seed.sold.map(p=>({id:uid(),price:p,type:'estimate',note:'ความจำ AI',use:true}))
+   .concat(id.seed.list.map(p=>({id:uid(),price:p,type:'estimate',note:'ความจำ AI',use:true})));
+  return[];},
+ buyers(cat,price){const map={'tools.power':['technician','contractor','shop'],'phone':['consumer','reseller','shop'],
+  'generator':['contractor','rental_business','business_owner'],'appliance':['consumer','reseller'],
+  'bike':['consumer','reseller'],'furniture':['consumer','business_owner'],'generic':['consumer','reseller','dealer']}[cat]||['consumer'];
+  const why={technician:['ใช้ทำงานประจำวัน ต้องการของพร้อมใช้ทันที',['กลุ่ม FB ช่างไทย','ร้านซ่อมเครื่องมือ']],
+  contractor:['ซื้อเพิ่มให้ทีมงาน',['ร้านวัสดุก่อสร้าง','กลุ่มผู้รับเหมา']],shop:['รับไปขายต่อหน้าร้าน',['ร้านมือสองในพื้นที่']],
+  consumer:['ใช้ส่วนตัว เน้นราคาถูก',['Facebook Marketplace','Kaidee']],reseller:['ซื้อไปทำกำไรต่อ',['กลุ่มรับซื้อมือสอง']],
+  rental_business:['ซื้อเข้าฟลีตให้เช่า',['ร้านให้เช่าเครื่องมือ']],business_owner:['ใช้ในกิจการ',['กลุ่มธุรกิจในพื้นที่']],
+  dealer:['รับซื้อเหมา',['ร้านรับซื้อของเก่า']]};
+  return map.map((b,i)=>({type:b,why:why[b][0],ch:why[b][1],lo:Math.round(price*(1.25-i*.1)),hi:Math.round(price*(1.7-i*.12)),p:i+1}));},
+ listing(d){const c=CAT[d.cat]||CAT.generic;
+  return{title:`${d.name} สภาพ${T.cond[d.cond]||''} พร้อมใช้งาน`,
+  desc:`${d.name}\n• สภาพ: ${T.cond[d.cond]}\n• ตรวจสอบแล้วก่อนส่งมอบ\n• จุดที่ตรวจแล้ว: ${c.check.slice(0,3).join(' / ')}`,
+  price:d.target,min:Math.round(d.target*.88),tags:['#'+(d.brand||'มือสอง').replace(/\s/g,''),'#'+c.th.replace(/\s/g,''),'#ของมือสองสภาพดี']};},
+ negoScript(d,tone){const target=Math.round(d.maxBuy||d.price*0.85);const midTxt=d.mid?`ลองเช็คราคาตลาดดูอยู่ที่ประมาณ ${money(d.mid)} `:'';
+  const TP={friendly:`พี่ครับ ของชิ้นนี้ผมสนใจเลยครับ 😄 ${midTxt}ผมขอต่อเหลือ ${money(target)} ได้ไหมครับพี่ ถ้าโอเคผมรับเลยวันนี้เลยครับ`,
+  polite:`สวัสดีครับพี่ สนใจ${d.name||'สินค้าชิ้นนี้'}ครับ ${midTxt}ขอเสนอราคาที่ ${money(target)} ได้ไหมครับ พร้อมนัดรับได้เลยครับ`,
+  direct:`สนใจครับ ให้ราคา ${money(target)} ได้ไหมครับ เช็คราคาตลาดมาแล้วครับ พร้อมโอนทันที`};
+  return{text:TP[tone]||TP.friendly,target};},
+ screeningQuestions(d){const c=CAT[d.cat]||CAT.generic;
+  return['ใช้งานมานานแค่ไหนแล้วครับ',`${c.check[0]}เป็นยังไงบ้างครับ`,'มีกล่อง/ใบเสร็จครบไหมครับ','สาเหตุที่ขายครับ'];}};
+
+/* ============ Store ============ */
+const Store={k:'adh.ui1',d:null,
+ load(){try{this.d=JSON.parse(localStorage.getItem(this.k))}catch(e){}
+  if(!this.d||!this.d.deals)this.d=this.seed();
+  this.d.usage=this.d.usage||{used:0,saved:0};this.d.stats=this.d.stats||{totalAnalyzed:9};
+  this.d.settings=this.d.settings||{capital:50000};return this.d},
+ save(){localStorage.setItem(this.k,JSON.stringify(this.d));render()},
+ all(){return this.d.deals},get(id){return this.d.deals.find(d=>d.id===id)},
+ add(d){d.id=uid();d.createdAt=Date.now();d.events=[{t:'found',at:Date.now()}];this.d.deals.unshift(d);this.save();return d},
+ upd(id,p){Object.assign(this.get(id),p);this.save()},
+ event(id,t,amt){this.get(id).events.push({t,at:Date.now(),amt});this.save()},
+ trackAI(used){this.d.usage[used?'used':'saved']++;this.d.stats.totalAnalyzed++;localStorage.setItem(this.k,JSON.stringify(this.d));updateQuota();},
+ setCapital(v){this.d.settings.capital=+v||0;this.save();},
+ reset(){if(confirm('ล้างข้อมูลทั้งหมดและโหลดตัวอย่างใหม่?')){localStorage.removeItem(this.k);this.d=this.seed();this.save()}},
+ seed(){const mk=o=>Object.assign({id:uid(),createdAt:Date.now()-Math.random()*7e9,events:[{t:'found',at:Date.now()}],buyers:[],caps:[]},o);
+  return{usage:{used:0,saved:0},stats:{totalAnalyzed:9},settings:{capital:50000},deals:[
+  mk({name:'Makita HR2470 สว่านโรตารี่',brand:'Makita',model:'HR2470',cat:'tools.power',cond:'good',price:3200,km:12,loc:'ลาดพร้าว',
+   low:5200,mid:6500,high:7800,target:5900,cost:{purchase:3200,transport:246,repair:0,cleaning:150,fee:295,pack:80,other:0,labor:300,total:4271},
+   profit:1629,roi:38.1,score:92,risk:18,conf:90,tier:'sold',soldN:5,listN:3,decision:'BUY',status:'watching',
+   why:['ราคาเจ้าของ ฿3,200 เทียบราคาตลาดกลาง ฿6,500 = ต่ำกว่า 51%','อ้างอิงราคาขายจริง 5 จุด → ความมั่นใจ 90%'],
+   factors:{'กำไรที่เป็นไปได้':87,'ส่วนลดจากราคาตลาด':91,'ความต้องการตลาด':85,'ความเร็วในการขาย':79,'ความเสี่ยง (กลับด้าน)':82,'ผลกระทบค่าขนส่ง':75,'สภาพสินค้า':78,'ความมั่นใจราคา':90}}),
+  mk({name:'Makita HR2470 (ดีลเก่า#1)',brand:'Makita',model:'HR2470',cat:'tools.power',cond:'good',price:2900,km:10,loc:'บางเขน',
+   target:5600,cost:{purchase:2900,transport:200,repair:0,cleaning:100,fee:280,pack:80,other:0,labor:300,total:3860},profit:1740,roi:45.1,score:90,risk:20,conf:82,
+   decision:'BUY',status:'sold',actualSell:5900,actualCost:3860,actualProfit:2040,actualDays:6,lesson:'ลงกลุ่มช่างโดยตรง ขายไวมาก',
+   factors:{'กำไรที่เป็นไปได้':85,'ส่วนลดจากราคาตลาด':88,'ความต้องการตลาด':85,'ความเร็วในการขาย':82,'ความเสี่ยง (กลับด้าน)':80,'ผลกระทบค่าขนส่ง':88,'สภาพสินค้า':78,'ความมั่นใจราคา':82}}),
+  mk({name:'Makita HR2470 (ดีลเก่า#2)',brand:'Makita',model:'HR2470',cat:'tools.power',cond:'good',price:3100,km:8,loc:'หลักสี่',
+   target:5800,cost:{purchase:3100,transport:180,repair:0,cleaning:100,fee:290,pack:80,other:0,labor:300,total:4050},profit:1750,roi:43.2,score:88,risk:22,conf:80,
+   decision:'BUY',status:'sold',actualSell:6100,actualCost:4050,actualProfit:2050,actualDays:8,lesson:'ต่อราคาได้อีกเล็กน้อยครั้งหน้า',
+   factors:{'กำไรที่เป็นไปได้':82,'ส่วนลดจากราคาตลาด':85,'ความต้องการตลาด':85,'ความเร็วในการขาย':78,'ความเสี่ยง (กลับด้าน)':78,'ผลกระทบค่าขนส่ง':85,'สภาพสินค้า':78,'ความมั่นใจราคา':80}}),
+  mk({name:'iPhone 13 Pro 256GB',brand:'Apple',model:'13 Pro 256GB',cat:'phone',cond:'like_new',price:14500,km:8,loc:'บางนา',
+   low:16500,mid:18400,high:20000,target:17900,cost:{purchase:14500,transport:124,repair:0,cleaning:100,fee:1074,pack:80,other:0,labor:200,total:16078},
+   profit:1822,roi:11.3,score:74,risk:34,conf:78,tier:'sold',soldN:4,listN:3,decision:'NEGOTIATE',status:'negotiating',
+   why:['ROI ต่ำกว่า 20% → ควรต่อรองราคาลงอีก'],
+   factors:{'กำไรที่เป็นไปได้':23,'ส่วนลดจากราคาตลาด':38,'ความต้องการตลาด':90,'ความเร็วในการขาย':85,'ความเสี่ยง (กลับด้าน)':66,'ผลกระทบค่าขนส่ง':94,'สภาพสินค้า':92,'ความมั่นใจราคา':78}}),
+  mk({name:'Honda EU22i เครื่องปั่นไฟ',brand:'Honda',model:'EU22i',cat:'generator',cond:'good',price:28000,km:45,loc:'ปทุมธานี',
+   low:36000,mid:40000,high:44000,target:36800,cost:{purchase:28000,transport:560,repair:1500,cleaning:200,fee:1840,pack:200,other:0,labor:400,total:32700},
+   profit:4100,roi:12.5,score:58,risk:52,conf:62,tier:'sold',soldN:2,listN:3,decision:'FIND_BUYER_FIRST',status:'purchased',
+   why:['ราคาสูงเกิน ฿30,000 + สภาพคล่องไม่สูง → ควรหาผู้ซื้อก่อน'],
+   factors:{'กำไรที่เป็นไปได้':25,'ส่วนลดจากราคาตลาด':54,'ความต้องการตลาด':55,'ความเร็วในการขาย':37,'ความเสี่ยง (กลับด้าน)':48,'ผลกระทบค่าขนส่ง':69,'สภาพสินค้า':78,'ความมั่นใจราคา':62}}),
+  mk({name:'จักรยานเสือหมอบ Trek',brand:'Trek',model:'—',cat:'bike',cond:'fair',price:8900,km:20,loc:'รังสิต',
+   low:8200,mid:9200,high:10500,target:8460,cost:{purchase:8900,transport:360,repair:800,cleaning:200,fee:423,pack:200,other:0,labor:200,total:11083},
+   profit:-2623,roi:-23.7,score:28,risk:66,conf:48,tier:'sold',soldN:1,listN:3,decision:'PASS',status:'passed',
+   why:['🔴 กำไรติดลบหลังหักต้นทุนทั้งหมด'],
+   factors:{'กำไรที่เป็นไปได้':0,'ส่วนลดจากราคาตลาด':6,'ความต้องการตลาด':45,'ความเร็วในการขาย':25,'ความเสี่ยง (กลับด้าน)':34,'ผลกระทบค่าขนส่ง':87,'สภาพสินค้า':60,'ความมั่นใจราคา':48}}),
+  mk({name:'Dyson V11 เครื่องดูดฝุ่นไร้สาย',brand:'Dyson',model:'V11',cat:'appliance',cond:'good',price:6200,km:15,loc:'นนทบุรี',
+   low:8400,mid:9600,high:10600,target:8832,cost:{purchase:6200,transport:320,repair:0,cleaning:250,fee:442,pack:80,other:0,labor:200,total:7492},
+   profit:1340,roi:17.9,score:83,risk:26,conf:80,tier:'sold',soldN:3,listN:2,decision:'BUY',status:'listed',
+   why:['ต่ำกว่าราคาตลาดกลาง 35%'],factors:{'กำไรที่เป็นไปได้':38,'ส่วนลดจากราคาตลาด':82,'ความต้องการตลาด':70,'ความเร็วในการขาย':64,'ความเสี่ยง (กลับด้าน)':74,'ผลกระทบค่าขนส่ง':82,'สภาพสินค้า':78,'ความมั่นใจราคา':80}}),
+  mk({name:'ตู้เย็น Mitsubishi 6.4 คิว',brand:'Mitsubishi',model:'MR-14',cat:'appliance',cond:'fair',price:2500,km:30,loc:'มีนบุรี',
+   low:3800,mid:4400,high:5000,target:4048,cost:{purchase:2500,transport:540,repair:600,cleaning:250,fee:202,pack:200,other:0,labor:250,total:4542},
+   profit:-494,roi:-10.9,score:41,risk:58,conf:65,tier:'sold',soldN:3,listN:1,decision:'PASS',status:'sold',
+   actualSell:4100,actualCost:4700,actualProfit:-600,actualDays:32,lesson:'ของใหญ่ค่าขนส่งกินกำไรหมด ครั้งหน้าเลี่ยงสินค้าเกิน 40 กก. ระยะไกล'})
+ ]};}};
+
+/* ============ UI PRIMITIVES (redesigned) ============ */
+const Card=(c,x='')=>`<div class="rounded-3xl glass shadow-card p-4 ${x}">${c}</div>`;
+const Section=(title,right='')=>`<div class="mb-3 flex items-center gap-2"><h2 class="text-[15px] font-bold">${title}</h2>${right?`<div class="ml-auto">${right}</div>`:''}</div>`;
+const Stat=(icon,l,v,c='')=>`<div class="rounded-2xl glass shadow-card p-3.5">
+ <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500">${icon} ${l}</div>
+ <div class="mt-1.5 text-xl font-extrabold ${c}">${v}</div></div>`;
+function Ring(s,sz=52){const c=bm(s).c;return`<div class="relative shrink-0" style="width:${sz}px;height:${sz}px">
+ <div class="absolute inset-0 rounded-full ring-grad" style="--p:${s};--c:${c}"></div>
+ <div class="absolute inset-[3px] rounded-full grid place-items-center bg-white dark:bg-ink-900">
+ <span class="font-extrabold ${bm(s).tx}" style="font-size:${sz*.32}px">${s}</span></div></div>`;}
+const Badge=(t,c='bg-slate-500/10 text-slate-500')=>`<span class="rounded-full px-2.5 py-1 text-[10px] font-medium ${c}">${t}</span>`;
+const Bar=(l,v,c='#10b981')=>`<div class="mb-2 flex items-center gap-2 text-xs"><span class="w-28 shrink-0 truncate text-slate-500">${l}</span>
+ <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-500/10"><div class="h-2 rounded-full transition-all" style="width:${Math.max(2,Math.min(100,v))}%;background:${c}"></div></div>
+ <span class="w-7 text-right font-medium">${Math.round(v)}</span></div>`;
+const Row=(l,v,c='')=>`<div class="flex justify-between gap-2 py-1 text-[13px]"><span class="text-slate-500">${l}</span><b class="${c} text-right">${v}</b></div>`;
+const Inp=(id,l,ph='',v='',type='text')=>`<div><label class="mb-1.5 block text-[12px] font-medium text-slate-500">${l}</label>
+ <input id="${id}" type="${type}" value="${v}" placeholder="${ph}" class="w-full rounded-xl border-0 bg-black/[.04] px-3.5 py-2.5 text-sm ring-1 ring-black/5 focus:ring-2 focus:ring-brand-500 dark:bg-white/5 dark:ring-white/10"></div>`;
+const V=id=>{const e=document.getElementById(id);return e?e.value.trim():''};
+const LVBADGE=l=>l==='เชี่ยวชาญ'?'bg-emerald-500/15 text-emerald-400':l==='ยังไม่ถนัด'?'bg-rose-500/15 text-rose-400':l==='ชำนาญ'?'bg-sky-500/15 text-sky-400':'bg-slate-500/10 text-slate-500';
+function quotaText(){const s=Store.d.usage||{used:0,saved:0};const total=s.used+s.saved;const sp=total?Math.round(s.saved/total*100):0;return`⚡ AI ${s.used} · ประหยัด ${s.saved} (${sp}%)`;}
+
+function EmptyState(icon,title,desc,cta,ctaFn){return`<div class="flex flex-col items-center justify-center gap-3 py-14 text-center">
+ <div class="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-brand-500/20 to-teal-500/10 text-3xl">${icon}</div>
+ <div class="font-bold">${title}</div><div class="max-w-xs text-sm text-slate-500">${desc}</div>
+ ${cta?`<button onclick="${ctaFn}" class="tapscale mt-1 rounded-full bg-gradient-to-r from-brand-500 to-teal-500 px-5 py-2.5 text-sm font-bold text-white shadow-glow">${cta}</button>`:''}</div>`;}
+
+/* ============ Nego + Decay ============ */
+let negoTone='friendly';
+function NegoBox(src){if(!src)return'';const{text,target}=AI.negoScript(src,negoTone);const qs=AI.screeningQuestions(src);
+ return`<div id="negoText" class="rounded-2xl bg-black/[.04] p-3.5 text-[13px] leading-relaxed dark:bg-white/5">${text}</div>
+ <button onclick="copyNego()" class="tapscale mt-2 w-full rounded-xl bg-black/5 py-2 text-[12px] font-medium dark:bg-white/5">📋 คัดลอกข้อความ</button>
+ <div class="mt-1 text-center text-[11px] text-slate-500">ราคาต่อรองในสคริปต์ ${money(target)}</div>
+ <div class="mt-3 rounded-2xl bg-black/[.03] p-3 text-[11px] dark:bg-white/[.03]">
+ <div class="mb-1 font-semibold text-slate-500">คำถามคัดกรองก่อนนัดดู</div>
+ <div class="space-y-0.5 text-slate-500">${qs.map(q=>'• '+q).join('<br>')}</div></div>`;}
+function copyNego(){const el=document.getElementById('negoText');if(!el)return;
+ navigator.clipboard.writeText(el.innerText).then(()=>toast('คัดลอกข้อความแล้ว'));}
+function toneBtns(fnName){return['friendly','polite','direct'].map(t=>
+ `<button onclick="negoTone='${t}';${fnName}" class="chip rounded-full px-3 py-1.5 text-[11px] font-medium ${negoTone===t?'bg-brand-500 text-white':'bg-black/5 text-slate-500 dark:bg-white/5'}">${{friendly:'เป็นกันเอง',polite:'สุภาพ',direct:'ตรงๆ'}[t]}</button>`).join('');}
+function decayChart(d){const c=CAT[d.cat]||CAT.generic;const days=30;const pts=[];
+ for(let i=0;i<=days;i+=3){const lost=Math.min(40,i*(c.decay/7));pts.push([i,d.target*(1-lost/100)]);}
+ const maxV=d.target*1.05||1;const svgPts=pts.map(([x,v])=>`${x/days*380+10},${100-(v/maxV*90)}`).join(' ');
+ const info=Learn.decayInfo(d);const curDay=info?Math.min(days,info.days):0;const curX=curDay/days*380+10;
+ return`<svg viewBox="0 0 400 100" class="h-20 w-full"><line x1="10" y1="90" x2="390" y2="90" stroke="currentColor" class="text-slate-500/20"/>
+ <polyline fill="none" stroke="#f59e0b" stroke-width="2.5" points="${svgPts}"/>
+ <line x1="${curX}" y1="5" x2="${curX}" y2="90" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3 3"/></svg>
+ <div class="mt-1 text-[11px] text-slate-500">มูลค่าที่ลดลงตามเวลา (ตกเฉลี่ย ${c.decay}%/สัปดาห์)</div>`;}
+function toast(msg){const t=document.createElement('div');
+ t.className='fixed left-1/2 top-4 z-[100] -translate-x-1/2 rounded-full bg-ink-900 px-4 py-2 text-xs font-medium text-white shadow-card';
+ t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}
+
+/* ============ routes ============ */
+const NAV=[['/','ภาพรวม','layout-dashboard'],['/find','สแกน','scan-line'],['/deals','ดีล','clipboard-list'],['/insights','สถิติ','bar-chart-2']];
+let cur='/find',param=null,tab='overview',ana=null,pending=[],imgs=[],cond='good';
+
+function BudgetResult(budget){const sugg=Learn.skillMap().filter(c=>c.n>=1).map(c=>({...c,fit:budget>=c.avgCost*0.6})).sort((a,b)=>b.ann-a.ann);
+ if(!sugg.length)return`<div class="py-3 text-center text-xs text-slate-500">ล่าไปอีกสักพัก ระบบจะเริ่มแนะนำได้แม่นขึ้น</div>`;
+ return`<div class="space-y-2">${sugg.map(s=>`<div class="flex items-center gap-3 rounded-2xl p-3 ${s.fit?'bg-emerald-500/8 ring-1 ring-emerald-500/20':'bg-black/[.03] dark:bg-white/[.03] opacity-60'}">
+ <span class="text-xl">${CAT[s.cat].icon}</span>
+ <div class="min-w-0 flex-1"><div class="truncate text-[13px] font-semibold">${CAT[s.cat].th}</div>
+ <div class="text-[11px] text-slate-500">win ${pct(s.winRate,0)} · ROI/ปี ${pct(s.ann,0)} · งบ ~${money(s.avgCost)}</div></div>
+ <span class="shrink-0 text-[11px] font-medium ${s.fit?'text-emerald-400':'text-slate-500'}">${s.fit?'✓ เหมาะ':'เกินงบ'}</span></div>`).join('')}</div>`;}
+function renderBudget(){document.getElementById('bhResult').innerHTML=BudgetResult(+V('bh_budget')||0);}
+
+function Dashboard(){const d=Store.all();const st=k=>d.filter(x=>x.status===k).length;
+ const real=d.filter(x=>x.actualProfit!=null).reduce((a,x)=>a+x.actualProfit,0);
+ const est=d.filter(x=>['watching','negotiating','purchased','listed'].includes(x.status)).reduce((a,x)=>a+(x.profit||0),0);
+ const avgS=d.length?d.reduce((a,x)=>a+(x.score||0),0)/d.length:0;
+ const hot=d.filter(x=>x.score>=80&&!['sold','passed','lost'].includes(x.status));
+ const rec=[...d].filter(x=>!['sold','passed','lost'].includes(x.status)).sort((a,b)=>b.score-a.score).slice(0,4);
+ const cf=Cash.get();
+
+ return`<div class="pagefade space-y-4">
+ <div class="flex items-end justify-between">
+  <div><div class="text-xs text-slate-500">สวัสดี 👋</div><h1 class="text-2xl font-extrabold tracking-tight">ภาพรวมการล่า</h1></div>
+  <button onclick="go('/find')" class="tapscale hidden sm:flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-teal-500 px-4 py-2.5 text-sm font-bold text-white shadow-glow">⚡ สแกนดีลใหม่</button>
+ </div>
+
+ <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+ ${Stat('📦','ทั้งหมด',d.length)}${Stat('👀','ติดตาม',st('watching'))}${Stat('🔥','น่าสนใจ',hot.length,'text-emerald-400')}${Stat('🛒','ถือครอง',st('purchased')+st('listed'))}
+ ${Stat('✅','ขายแล้ว',st('sold'))}${Stat('💰','กำไรจริง',sgn(real),real>=0?'text-emerald-400':'text-rose-400')}${Stat('📈','กำไรคาด',money(est),'text-sky-400')}${Stat('⭐','คะแนนเฉลี่ย',avgS.toFixed(1),bm(avgS).tx)}</div>
+
+ ${Card(`${Section('💰 เงินทุนหมุนเวียน',`<input type="number" value="${cf.capital}" onchange="Store.setCapital(this.value)" class="w-24 rounded-lg bg-black/5 px-2 py-1 text-right text-xs dark:bg-white/5">`)}
+ <div class="mb-2.5 h-2.5 w-full overflow-hidden rounded-full bg-black/5 dark:bg-white/5">
+ <div class="h-full rounded-full transition-all bg-gradient-to-r ${cf.lockedPct>70?'from-rose-500 to-rose-400':cf.lockedPct>40?'from-amber-500 to-amber-400':'from-emerald-500 to-teal-400'}" style="width:${Math.min(100,cf.lockedPct)}%"></div></div>
+ <div class="grid grid-cols-3 gap-2 text-center text-[13px]">
+ <div><div class="text-[10px] text-slate-500">เงินจม</div><div class="font-bold ${cf.lockedPct>70?'text-rose-400':'text-amber-400'}">${money(cf.locked)}</div></div>
+ <div><div class="text-[10px] text-slate-500">คงเหลือ</div><div class="font-bold text-emerald-400">${money(cf.available)}</div></div>
+ <div><div class="text-[10px] text-slate-500">ใช้ไป</div><div class="font-bold">${pct(cf.lockedPct,0)}</div></div></div>`)}
+
+ ${Card(`${Section('🎯 วันนี้มีงบเท่าไหร่ ควรไปหาอะไร')}
+ <div class="mb-3 flex gap-2"><input id="bh_budget" type="number" value="5000" class="flex-1 rounded-xl border-0 bg-black/[.04] px-3.5 py-2.5 text-sm ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10">
+ <button onclick="renderBudget()" class="tapscale shrink-0 rounded-xl bg-gradient-to-r from-brand-500 to-teal-500 px-4 text-sm font-bold text-white">แนะนำ</button></div>
+ <div id="bhResult">${BudgetResult(5000)}</div>`)}
+
+ <div class="grid gap-3 lg:grid-cols-2">
+ ${Card(`${Section('📊 การเรียก AI')}<div class="flex items-center justify-around text-center">
+ <div><div class="text-2xl font-extrabold text-brand-500">${Store.d.usage.used}</div><div class="text-[11px] text-slate-500">เรียกจริง</div></div>
+ <div class="text-slate-400">vs</div><div><div class="text-2xl font-extrabold text-emerald-400">${Store.d.usage.saved}</div><div class="text-[11px] text-slate-500">ประหยัดได้</div></div></div>`)}
+ ${Card(`${Section('การกระจาย Deal Score')}
+ ${[[90,100,'ยอดเยี่ยม','#10b981'],[80,89,'ดี','#22c55e'],[65,79,'ต่อราคา','#f59e0b'],[50,64,'หาผู้ซื้อ','#38bdf8'],[0,49,'ไม่แนะนำ','#f43f5e']]
+ .map(([a,b,l,c])=>{const v=d.filter(x=>x.score>=a&&x.score<=b).length;return Bar(l,Math.min(100,v/Math.max(1,d.length)*300),c)}).join('')}`)}</div>
+
+ <div>${Section('🔥 ดีลที่ AI แนะนำ',`<a href="#" onclick="go('/deals')" class="text-xs font-medium text-brand-500">ดูทั้งหมด →</a>`)}
+ <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${rec.map(DealCard).join('')||EmptyState('🔍','ยังไม่มีดีล','เริ่มสแกนดีลแรกของคุณได้เลย','สแกนดีลแรก',"go('/find')")}</div></div>
+ </div>`;}
+
+const DealCard=d=>`<div onclick="go('/deal','${d.id}')" class="tapscale group cursor-pointer rounded-3xl glass shadow-card p-3.5 transition hover:-translate-y-0.5 hover:shadow-glow">
+ <div class="mb-3 flex h-20 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">${ic(CAT[d.cat].icon,'w-8 h-8')}</div>
+ <div class="mb-2 truncate text-[13px] font-bold text-slate-800">${d.name}${d.provenanceFlag?' <span class="text-rose-500 text-xs">⚑</span>':''}</div>
+ <div class="mb-3 flex items-center justify-between text-[11px] text-slate-500"><span>${money(d.price)}</span><span class="${d.profit>=0?'text-emerald-600':'text-rose-500'} font-semibold">${sgn(d.profit)}</span></div>
+ <div class="flex items-center gap-2.5 border-t border-slate-100 pt-3">${Ring(d.score,40)}
+ <div class="min-w-0 text-[11px] leading-tight"><div class="${bm(d.score).tx} font-semibold flex items-center gap-1">${ic(bm(d.score).e,'w-3.5 h-3.5')} ${T.decision[d.decision]}</div>
+ <div class="text-slate-400">ความเสี่ยง ${d.risk}</div></div><span class="ml-auto shrink-0">${Badge(T.status[d.status])}</span></div></div>`;
+
+function FindDeal(){return`<div class="pagefade space-y-4 text-center">
+ <h1 class="text-2xl font-extrabold tracking-tight">สแกนของ</h1>
+ 
+ <div onclick="document.getElementById('f_img').click()" class="tapscale mx-auto flex h-56 w-full max-w-sm cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-brand-400 to-teal-600 text-white shadow-glow relative" id="drop">
+ ${imgs.length?imgs.map(s=>`<img src="${s}" class="absolute inset-0 h-full w-full object-cover">`).join(''):`
+  <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+  <div class="font-bold text-base">แตะเพื่อถ่ายรูป</div>
+  <div class="text-[11px] font-medium opacity-80 bg-black/10 px-3 py-1 rounded-full">AI จะประเมินราคาให้เอง</div>
+ `}</div>
+ <input type="file" id="f_img" accept="image/*" capture="environment" class="hidden" onchange="upload(this)">
+ <div class="text-center mt-3"><button onclick="document.getElementById('manual_entry').open = true; document.getElementById('manual_entry').scrollIntoView({behavior:'smooth'})" class="text-xs font-semibold text-slate-500 underline decoration-slate-300 underline-offset-4">หรือ พิมพ์ข้อมูลเองโดยไม่ใช้กล้อง</button></div>
+ <div id="result" class="space-y-3 mt-6 text-left">${ana?Result(ana):''}</div>
+
+ <details id="manual_entry" class="group mt-6 rounded-3xl bg-black/5 p-4 text-left dark:bg-white/5">
+ <summary class="cursor-pointer font-bold outline-none flex justify-between items-center text-sm text-slate-700 dark:text-slate-300"><span>✍️ พิมพ์ข้อมูลเอง / แก้ไข (Manual)</span><span class="opacity-50 group-open:rotate-180 transition">▼</span></summary>
+ <div class="mt-4 space-y-4">
+ 
+ ${Card(`${Section('แก้ไขข้อมูลสินค้า')}
+ <div class="grid gap-3 sm:grid-cols-2">
+ ${Inp('f_name','ชื่อสินค้า')}${Inp('f_brand','ยี่ห้อ')}${Inp('f_model','รุ่น')}
+ ${Inp('f_price','ราคาที่เจ้าของขาย (฿)','','','number')}
+ </div>
+ <label class="mb-1.5 mt-3 block text-[12px] font-medium text-slate-500">สภาพสินค้า</label>
+ <div class="flex flex-wrap gap-2">${Object.entries(T.cond).filter(([k])=>k!=='unknown').map(([k,v],i)=>
+ `<button data-c="${k}" onclick="setCond('${k}')" class="cbtn chip rounded-full px-3.5 py-1.5 text-xs font-medium ${i===2?'bg-brand-500 text-white':'bg-black/5 text-slate-500 dark:bg-white/5'}">${v}</button>`).join('')}</div>`)}
+
+ ${Card(`${Section('หลักฐานราคาตลาด')}
+ <textarea id="f_ev" rows="3" class="w-full rounded-xl border-0 bg-black/[.04] px-3.5 py-2.5 font-mono text-xs ring-1 ring-black/5 dark:bg-white/5 dark:ring-white/10"></textarea>
+ <button onclick="parseEv()" class="tapscale mt-2 w-full rounded-xl bg-black/5 py-2 text-xs font-semibold dark:bg-white/5">✨ รีเฟรชราคา</button>
+ <div id="evList" class="mt-2">${EvList()}</div>`)}
+
+ ${Card(`${Section('ต้นทุน + เวลา')}
+ <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+ ${Inp('f_km','ระยะทาง (กม.)','12','','number')}${Inp('f_transport','ค่าขนส่ง','อัตโนมัติ','','number')}${Inp('f_repair','ค่าซ่อม','0','','number')}
+ ${Inp('f_clean','ทำความสะอาด','0','','number')}${Inp('f_pack','แพ็กเกจ','อัตโนมัติ','','number')}${Inp('f_hours','ชม.ที่ใช้','2','2','number')}
+ ${Inp('f_rate','ค่าแรง/ชม.','300','300','number')}</div>`)}
+
+ <button onclick="analyze()" class="tapscale w-full rounded-2xl bg-slate-800 py-3 text-sm font-bold text-white dark:bg-white dark:text-slate-900">วิเคราะห์ใหม่ด้วยข้อมูลที่แก้</button>
+ </div></details>
+ </div>`;}
+
+const EvList=()=>!pending.length?'':`<div class="mt-1 space-y-1.5">
+ ${pending.map((e,i)=>`<div class="flex items-center gap-2 rounded-xl bg-black/[.03] p-2 text-xs dark:bg-white/[.03]">
+ <span class="flex-1 truncate font-medium">${money(e.price)} <span class="font-normal text-slate-500">${e.note.slice(0,20)}</span></span>
+ <select onchange="pending[${i}].type=this.value;rerenderEv()" class="rounded-lg bg-black/5 px-1.5 py-1 text-[11px] dark:bg-white/10">
+ <option value="sold" ${e.type==='sold'?'selected':''}>ขายจริง</option><option value="listing" ${e.type==='listing'?'selected':''}>ประกาศ</option></select>
+ <input type="checkbox" ${e.use?'checked':''} onchange="pending[${i}].use=this.checked;rerenderEv()" class="h-4 w-4 accent-emerald-500"></div>`).join('')}</div>`;
+
+function Result(a){const b=bm(a.score);const srcLabel={blended:'🧠 ผสม AI + ประวัติจริง',history:'🧠 ประวัติจริงล้วน',ai:'AI/ตลาด',none:'ไม่มีข้อมูล'};
+ return`<div class="pagefade space-y-3">
+ ${a.provenanceFlag?Card(`<div class="text-[13px] font-bold text-rose-400">🚩 ระวัง: ราคาต่ำผิดปกติ + ไม่มีหลักฐานที่มาสินค้า</div>
+ <div class="mt-1 text-xs text-slate-500">แนะนำ: สอบถามที่มา/ใบเสร็จก่อนซื้อ บันทึกเบอร์ผู้ขายไว้เป็นหลักฐาน</div>`,'ring-2 ring-rose-500/40 bg-rose-500/5'):''}
+ ${a.waterfall?Card(`<div class="text-xs">🧠 พบประวัติดีลรุ่นนี้ <b>${a.waterfall.n}</b> ครั้ง ขายเฉลี่ยจริง <b>${money(a.waterfall.avgSell)}</b>
+ ${!a.usedAI?' · <b class="text-brand-400">ข้ามการเรียก AI ประหยัดโควตา</b>':''}</div>`,'ring-1 ring-brand-500/30 bg-brand-500/5'):''}
+
+ ${Card(`<div class="flex items-center gap-3"><div class="min-w-0 flex-1"><div class="text-lg font-extrabold ${b.tx}">${b.e} ${T.decision[a.decision]}</div>
+ <div class="text-xs text-slate-500">${b.l} · เสี่ยง ${a.risk}/100 · มั่นใจ ${a.conf}%</div></div>${Ring(a.score,60)}</div>
+ <ol class="ml-4 mt-3 list-decimal space-y-1.5 text-[13px] text-slate-600 dark:text-slate-300">${a.why.map(w=>`<li>${w}</li>`).join('')}</ol>
+ ${a.caps.length?`<div class="mt-2 rounded-xl bg-amber-500/10 p-2.5 text-[11px] text-amber-500">${a.caps.map(c=>'⚠ '+c).join('<br>')}</div>`:''}`,`ring-2 ${b.ring} ${b.bg}`)}
+
+ ${Card(`${Section('STEP 1 — ระบุสินค้า')}${Row('สินค้า',a.name)}${Row('ยี่ห้อ / รุ่น',a.brand+' / '+a.model)}${Row('หมวด',CAT[a.cat].icon+' '+CAT[a.cat].th)}
+ ${Row('ความมั่นใจระบุ',pct(a.idConf,0),a.idConf>=70?'text-emerald-400':'text-amber-400')}`)}
+
+ ${Card(`${Section('STEP 2 — ข้อมูลตลาด')}${Row('แหล่งราคา',srcLabel[a.priceSource]||'—','text-brand-400')}
+ ${Row('ราคาขายจริง',a.soldN?`${a.soldN} จุด`:'ไม่มี',a.soldN?'text-emerald-400':'text-rose-400')}${Row('ราคาประกาศ',a.listN+' จุด')}
+ ${Row('ความมั่นใจราคา',pct(a.conf,0),a.conf>=70?'text-emerald-400':'text-amber-400')}`)}
+
+ ${Card(`${Section('STEP 3–4 — มูลค่า / ต้นทุน / กำไร')}
+ ${Row('ราคาตลาดกลาง',money(a.mid))}${Row('ซื้อสูงสุดที่รับได้',money(a.maxBuy),'text-amber-400')}${Row('ขายต่อเป้าหมาย',money(a.target),'text-sky-400')}
+ <div class="my-1.5 border-t border-black/5 dark:border-white/5"></div>
+ ${Row('ค่าแรงของคุณ',money(a.cost.labor))}${Row('ต้นทุนรวม',money(a.cost.total))}
+ <div class="mt-1.5 flex items-center justify-between rounded-xl bg-black/[.03] px-3 py-2 dark:bg-white/[.03]"><b class="text-sm">กำไรประมาณ</b><b class="text-lg ${a.profit>=0?'text-emerald-400':'text-rose-400'}">${sgn(a.profit)}</b></div>
+ ${Row('ROI',pct(a.roi),a.roi>=20?'text-emerald-400':'text-amber-400')}${Row('ROI ต่อปี',pct(a.annualized),'text-brand-500 font-semibold')}
+ ${a.capitalPct>30?`<div class="mt-2 rounded-xl bg-amber-500/10 p-2 text-[11px] text-amber-500">⚠ ใช้เงินทุนเกิน 30% (${pct(a.capitalPct,0)})</div>`:''}`)}
+
+ ${Card(`${Section('ที่มาของคะแนน '+a.score+'/100')}${Object.entries(a.factors).map(([k,v])=>Bar(k,v,v>=70?'#10b981':v>=45?'#f59e0b':'#f43f5e')).join('')}`)}
+
+ ${Card(`${Section('📝 สคริปต์ต่อราคา',`<div class="flex gap-1">${toneBtns("document.getElementById('negoBox').innerHTML=NegoBox(ana)")}</div>`)}
+ <div id="negoBox">${NegoBox(a)}</div>`)}
+
+ ${Card(`${Section('👥 ใครน่าจะซื้อสินค้านี้')}<div class="space-y-2">${a.buyers.map(x=>`<div class="rounded-2xl bg-black/[.03] p-3 text-xs dark:bg-white/[.03]">
+ <div class="font-bold">#${x.p} ${T.buyer[x.type]}</div><div class="mt-0.5 text-slate-500">${x.why}</div>
+ <div class="mt-1">งบ <b class="text-sky-400">${money(x.lo)}–${money(x.hi)}</b></div></div>`).join('')}</div>`)}
+
+ <div class="flex gap-2.5"><button onclick="saveDeal()" class="tapscale flex-1 rounded-2xl bg-ink-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-ink-950">💾 บันทึกเป็นดีล</button>
+ <button onclick="ana=null;render()" class="tapscale rounded-2xl bg-black/5 px-5 text-sm font-semibold dark:bg-white/5">ล้าง</button></div></div>`;}
+
+function Deals(){const f=window._f||'all';const d=Store.all().filter(x=>f==='all'||x.status===f);
+ const tabs=[['all','ทั้งหมด'],...Object.entries(T.status)];
+ return`<div class="pagefade space-y-4"><h1 class="text-2xl font-extrabold tracking-tight">ดีลทั้งหมด</h1>
+ <div class="flex gap-2 overflow-x-auto pb-1">${tabs.map(([k,l])=>`<button onclick="window._f='${k}';render()" class="chip shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${f===k?'bg-gradient-to-r from-brand-500 to-teal-500 text-white':'bg-black/5 text-slate-500 dark:bg-white/5'}">${l}</button>`).join('')}</div>
+ <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">${d.map(DealCard).join('')||EmptyState('📭','ไม่มีดีลในสถานะนี้','ลองเลือกสถานะอื่น หรือเริ่มสแกนดีลใหม่')}</div>
+ <div class="text-center text-xs text-slate-500">รวม ${d.length} ดีล · กำไรจริงสะสม <b class="${Store.all().reduce((a,x)=>a+(x.actualProfit||0),0)>=0?'text-emerald-400':'text-rose-400'}">${sgn(Store.all().reduce((a,x)=>a+(x.actualProfit||0),0))}</b></div></div>`;}
+
+function Detail(){const d=Store.get(param);if(!d)return'<div class="text-sm text-slate-500">ไม่พบดีล</div>';
+ const L=AI.listing(d),b=bm(d.score),decay=Learn.decayInfo(d),active=!['sold','passed','lost'].includes(d.status);
+ const buyers=d.buyers&&d.buyers.length?d.buyers:AI.buyers(d.cat,d.price);
+ const ann=(d.roi||0)*(365/(d.actualDays||CAT[d.cat].days));
+ const TB=[['overview','ภาพรวม'],['ai','AI'],['buyer','ผู้ซื้อ'],['sales','ช่วยขาย'],['timeline','ไทม์ไลน์'],['result','ผลลัพธ์']];
+ const EV=[['found','พบดีล'],['contacted','ติดต่อ'],['purchased','ซื้อแล้ว'],['listed','ลงประกาศ'],['sold','ขายแล้ว']];
+ let body='';
+ if(tab==='overview')body=`${d.provenanceFlag?Card(`<div class="text-xs font-bold text-rose-400">🚩 ดีลนี้ถูกตั้งธงตรวจสอบที่มา — ผู้ขาย: ${d.seller||'ไม่ระบุ'}</div>`,'mb-3 ring-1 ring-rose-500/30 bg-rose-500/5'):''}
+ ${decay&&active?Card(`<div class="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-500"><span>⏳ ถือ ${decay.days} วัน มูลค่าลดแล้ว ~${decay.lostPct.toFixed(1)}%</span>
+ <button onclick="tab='sales';render()" class="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-semibold">ไปช่วยขาย →</button></div>${decayChart(d)}`,'mb-3 ring-1 ring-amber-500/30 bg-amber-500/5'):''}
+ ${['watching','negotiating'].includes(d.status)?Card(`${Section('📝 สคริปต์ต่อราคาด่วน',`<div class="flex gap-1">${toneBtns(`document.getElementById('negoBoxD').innerHTML=NegoBox(Store.get('${d.id}'))`)}</div>`)}<div id="negoBoxD">${NegoBox(d)}</div>`,'mb-3'):''}
+ <div class="grid gap-3 sm:grid-cols-2">${Card(`${Section('สินค้า')}${Row('ชื่อ',d.name)}${Row('หมวด',CAT[d.cat].icon+' '+CAT[d.cat].th)}${Row('สภาพ',T.cond[d.cond])}${Row('ผู้ขาย',d.seller||'ไม่ระบุ')}`)}
+ ${Card(`${Section('การเงิน')}${Row('ราคาเจ้าของ',money(d.price))}${Row('ต้นทุนรวม',money(d.cost.total))}${Row('กำไรประมาณ',sgn(d.profit),d.profit>=0?'text-emerald-400':'text-rose-400')}${Row('ROI ต่อปี',pct(ann),'text-brand-500')}
+ ${d.actualProfit!=null?Row('กำไรจริง',sgn(d.actualProfit),d.actualProfit>=0?'text-emerald-400':'text-rose-400'):''}`)}</div>`;
+ if(tab==='ai')body=Card(`<div class="mb-3 flex items-center gap-3">${Ring(d.score,58)}<div><div class="${b.tx} font-bold">${b.e} ${T.decision[d.decision]}</div><div class="text-xs text-slate-500">เสี่ยง ${d.risk} · มั่นใจ ${d.conf}%</div></div></div>
+ ${Object.entries(d.factors||{}).map(([k,v])=>Bar(k,v,v>=70?'#10b981':v>=45?'#f59e0b':'#f43f5e')).join('')}`);
+ if(tab==='buyer')body=`<div class="grid gap-3 sm:grid-cols-2">${buyers.map(x=>Card(`<div class="font-bold text-sm">#${x.p} ${T.buyer[x.type]}</div><div class="mt-1 text-xs text-slate-500">${x.why}</div><div class="mt-1.5 text-xs">งบ <b class="text-sky-400">${money(x.lo)}–${money(x.hi)}</b></div>`)).join('')}</div>`;
+ if(tab==='sales')body=`${decay&&active?Card(decayChart(d),'mb-3'):''}
+ ${Card(`${Section('ผู้ช่วยสร้างประกาศขาย',`<button onclick="copyL()" class="tapscale rounded-full bg-gradient-to-r from-brand-500 to-teal-500 px-3 py-1.5 text-[11px] font-bold text-white">✨ คัดลอก</button>`)}
+ <div class="rounded-xl bg-black/[.03] p-2.5 text-[13px] font-medium dark:bg-white/[.03]">${L.title}</div>
+ <pre class="mt-2 whitespace-pre-wrap rounded-xl bg-black/[.03] p-2.5 font-sans text-[13px] dark:bg-white/[.03]">${L.desc}</pre>
+ <div class="mt-2">${Row('ราคาขาย',money(L.price),'text-sky-400')}${Row('รับต่ำสุด',money(L.min),'text-amber-400')}</div>
+ <div class="mt-1 text-xs text-brand-500">${L.tags.join(' ')}</div>`)}
+ ${Card(`${Section('📝 สคริปต์ต่อราคา',`<div class="flex gap-1">${toneBtns(`document.getElementById('negoBoxD2').innerHTML=NegoBox(Store.get('${d.id}'))`)}</div>`)}<div id="negoBoxD2">${NegoBox(d)}</div>`)}`;
+ if(tab==='timeline')body=Card(`<div class="space-y-3">${EV.map(([k,l])=>{const e=(d.events||[]).find(x=>x.t===k);
+ return`<div class="flex items-center gap-3 text-xs"><span class="grid h-6 w-6 place-items-center rounded-full ${e?'bg-emerald-500 text-white':'bg-black/5 text-slate-400 dark:bg-white/5'}">${e?'✓':''}</span>
+ <span class="${e?'font-medium':'text-slate-500'}">${l}</span>${!e?`<button onclick="addEv('${d.id}','${k}')" class="tapscale ml-auto rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-semibold dark:bg-white/5">บันทึก</button>`:''}</div>`}).join('')}</div>`);
+ if(tab==='result')body=Card(`${Section('บันทึกผลลัพธ์จริง')}
+ <div class="grid gap-3 sm:grid-cols-2">${Inp('r_sell','ราคาขายได้จริง (฿)','',d.actualSell||'','number')}${Inp('r_days','ใช้เวลาขาย (วัน)','',d.actualDays||'','number')}
+ <div class="sm:col-span-2">${Inp('r_lesson','บทเรียนที่ได้','',d.lesson||'')}</div></div>
+ <button onclick="saveResult('${d.id}')" class="tapscale mt-3 w-full rounded-2xl bg-gradient-to-r from-brand-500 to-teal-500 py-3 text-sm font-extrabold text-white">บันทึกผลลัพธ์ และปิดดีล</button>`);
+ return`<div class="pagefade space-y-4"><button onclick="go('/deals')" class="text-xs font-medium text-slate-500">← กลับ</button>
+ <div class="flex flex-wrap items-center gap-2"><h1 class="text-lg font-extrabold">${d.name}${d.provenanceFlag?' 🚩':''}</h1>${Badge(T.status[d.status])}
+ <select onchange="Store.upd('${d.id}',{status:this.value})" class="ml-auto rounded-full bg-black/5 px-3 py-1.5 text-xs font-medium dark:bg-white/5">
+ ${Object.entries(T.status).map(([k,v])=>`<option value="${k}" ${d.status===k?'selected':''}>${v}</option>`).join('')}</select></div>
+ <div class="grid gap-3 sm:grid-cols-3">${Card(`<div class="grid h-24 place-items-center rounded-2xl bg-gradient-to-br from-black/[.04] to-transparent text-4xl dark:from-white/5">${CAT[d.cat].icon}</div>`)}
+ ${Card(`<div class="flex items-center gap-3">${Ring(d.score,58)}<div class="text-xs"><div class="${b.tx} font-bold">${b.e} ${b.l}</div><div class="text-slate-500">เสี่ยง ${d.risk} · มั่นใจ ${d.conf}%</div></div></div>`)}
+ ${Card(`${Row('กำไรประมาณ',sgn(d.profit),'text-emerald-400')}${Row('ROI',pct(d.roi))}${Row('ต้นทุน',money(d.cost.total))}`)}</div>
+ <div class="flex gap-2 overflow-x-auto pb-1">${TB.map(([k,l])=>`<button onclick="tab='${k}';render()" class="chip shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab===k?'bg-gradient-to-r from-brand-500 to-teal-500 text-white':'bg-black/5 text-slate-500 dark:bg-white/5'}">${l}</button>`).join('')}</div>
+ ${body}</div>`;}
+
+function Insights(){const d=Learn.history();const skill=Learn.skillMap(),neg=Learn.negativePatterns();
+ const purchased=Store.all().filter(x=>['purchased','listed','sold'].includes(x.status)).length;
+ const totalAnalyzed=Math.max(purchased,Store.d.stats.totalAnalyzed);const hitRate=totalAnalyzed?purchased/totalAnalyzed*100:0;
+ if(!d.length)return`<div class="pagefade"><h1 class="mb-3 text-2xl font-extrabold">สถิติ AI</h1>${Card(EmptyState('📊','ยังไม่มีข้อมูล','บันทึกผลลัพธ์จริงของดีลที่ขายแล้ว เพื่อให้ระบบเรียนรู้'))}</div>`;
+ const pe=d.reduce((a,x)=>a+(x.target-x.actualSell)/x.actualSell*100,0)/d.length;
+ const win=d.filter(x=>x.actualProfit>0).length/d.length*100;
+ const ad=d.reduce((a,x)=>a+(x.actualDays||0),0)/d.length;
+ const bands=[[80,100,'80–100'],[65,79,'65–79'],[50,64,'50–64'],[0,49,'0–49']].map(([a,b,l])=>{
+ const g=d.filter(x=>x.score>=a&&x.score<=b);return{l,n:g.length,win:g.length?g.filter(x=>x.actualProfit>0).length/g.length*100:null};});
+ return`<div class="pagefade space-y-4"><h1 class="text-2xl font-extrabold tracking-tight">สถิติ AI <span class="text-sm font-normal text-slate-500">(${d.length} ดีลปิดแล้ว)</span></h1>
+ <div class="grid grid-cols-2 gap-2.5 lg:grid-cols-4">${Stat('🎯','AI ประเมินราคาคลาด',pct(pe),Math.abs(pe)<10?'text-emerald-400':'text-amber-400')}
+ ${Stat('✅','อัตราทำกำไร',pct(win,0),win>=70?'text-emerald-400':'text-amber-400')}${Stat('⏱️','เวลาขายเฉลี่ย',ad.toFixed(1)+' วัน')}
+ ${Stat('🎯','Hit Rate',pct(hitRate,0),'text-brand-500')}</div>
+ <div class="grid gap-3 lg:grid-cols-2">
+ ${Card(`${Section('คะแนน เทียบ ผลจริง')}<table class="w-full text-left text-[13px]"><thead class="text-slate-500 text-xs"><tr><th class="pb-1.5">ช่วง</th><th>ดีล</th><th>ทำกำไร</th></tr></thead>
+ <tbody>${bands.map(b=>`<tr class="border-t border-black/5 dark:border-white/5"><td class="py-2">${b.l}</td><td>${b.n}</td><td class="${b.win>=70?'text-emerald-400':b.win!=null?'text-amber-400':''}">${b.win==null?'—':pct(b.win,0)}</td></tr>`).join('')}</tbody></table>`)}
+ ${Card(`${Section('🏆 แผนที่ความถนัด')}<table class="w-full text-left text-[13px]"><thead class="text-slate-500 text-xs"><tr><th class="pb-1.5">หมวด</th><th>ดีล</th><th>Win</th><th>ROI/ปี</th></tr></thead>
+ <tbody>${skill.map(s=>`<tr class="border-t border-black/5 dark:border-white/5"><td class="py-2">${CAT[s.cat].icon} ${s.name}</td><td>${s.n}</td><td class="${s.winRate>=70?'text-emerald-400':'text-amber-400'}">${pct(s.winRate,0)}</td><td class="font-bold">${pct(s.ann,0)}</td></tr>`).join('')}</tbody></table>`)}</div>
+ ${Card(`${Section('🚫 แพทเทิร์นที่เคยขาดทุน')}${neg.length?neg.map(p=>`<div class="mb-1 text-[13px] text-rose-400">• ${CAT[p.cat].th}: ${p.note} (${p.n} ครั้ง)</div>`).join(''):'<div class="text-[13px] text-slate-500">ยังไม่พบแพทเทิร์นซ้ำ</div>'}`)}
+ ${Card(`${Section('💡 บทเรียนจากดีลจริง')}<div class="space-y-1 text-[13px] text-slate-500">${d.filter(x=>x.lesson).map(x=>`<div>• ${x.lesson}</div>`).join('')||'ยังไม่มีบันทึก'}</div>`)}</div>`;}
+
+/* ============ actions ============ */
+function setCond(c){cond=c;document.querySelectorAll('.cbtn').forEach(b=>{const on=b.dataset.c===c;
+ b.className=`cbtn chip rounded-full px-3.5 py-1.5 text-xs font-medium ${on?'bg-brand-500 text-white':'bg-black/5 text-slate-500 dark:bg-white/5'}`});}
+async function upload(el){[...el.files].slice(0,1).forEach(f=>{const r=new FileReader();r.onload=e=>{
+ const i=new Image();i.onload=async()=>{const c=document.createElement('canvas');const s=Math.min(1,600/i.width);
+ c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+ const b64 = c.toDataURL('image/jpeg',.7); imgs=[b64];
+ document.getElementById('drop').innerHTML=`<img src="${b64}" class="h-20 rounded-xl"> <span class="text-xs ml-2 text-brand-500 font-bold animate-pulse">กำลังวิเคราะห์ด้วย AI...</span>`;
+ await analyzeWithGemini(b64);};i.src=e.target.result};r.readAsDataURL(f)});}
+async function analyzeWithGemini(b64){
+ const key = localStorage.getItem('gemini_api_key');
+ if(!key) {
+  const k = prompt('1. กรุณาใส่ Gemini API Key (ดึงได้จาก Google AI Studio):');
+  if(k){ localStorage.setItem('gemini_api_key', k); analyzeWithGemini(b64); }
+  else { document.getElementById('drop').innerHTML=`<img src="${b64}" class="absolute inset-0 h-full w-full object-cover">`; }
+  return;
+ }
+ try{
+  const b64data = b64.split(',')[1];
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key, {
+   method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({contents:[{parts:[
+    {text:"You are an expert second-hand appraiser. Analyze image. Reply JSON only: 'name' (Thai), 'brand', 'model', 'condition' ('new','like_new','good','fair','poor'), 'est_market_price_thb' (number)."},
+    {inlineData:{mimeType:"image/jpeg", data:b64data}}
+   ]}]})
+  });
+  const d = await res.json();
+  if(d.error) throw new Error(d.error.message);
+  const text = d.candidates[0].content.parts[0].text.replace(/```json/g,'').replace(/```/g,'').trim();
+  const obj = JSON.parse(text);
+  
+  if(document.getElementById('f_name')) document.getElementById('f_name').value = obj.name || '';
+  if(document.getElementById('f_brand')) document.getElementById('f_brand').value = obj.brand || '';
+  if(document.getElementById('f_model')) document.getElementById('f_model').value = obj.model || '';
+  if(obj.condition) setCond(obj.condition);
+
+  document.getElementById('drop').innerHTML=`<img src="${b64}" class="absolute inset-0 h-full w-full object-cover opacity-50"><div class="relative z-10 font-bold text-white text-lg animate-pulse bg-black/40 px-4 py-2 rounded-full">ดึงราคาตลาดจริง...</div>`;
+
+  let marketDataStr = `ราคาประเมินโดย AI (อ้างอิง) ${obj.est_market_price_thb||0} บาท\n`;
+  const serperKey = localStorage.getItem('serper_api_key');
+  if(!serperKey && !localStorage.getItem('serper_skipped')) {
+     const sk = prompt('2. (ทางเลือก) ใส่ Serper.dev API Key เพื่อสแกนดึงราคาจาก Shopee/eBay จริงๆ\n(ถ้าไม่มีให้กด Cancel เพื่อใช้ราคาประเมินจาก AI เพียวๆแทนได้ครับ)');
+     if(sk) { localStorage.setItem('serper_api_key', sk); }
+     else { localStorage.setItem('serper_skipped', '1'); }
+  }
+  
+  if(localStorage.getItem('serper_api_key')) {
+      try {
+          const sRes = await fetch('https://google.serper.dev/search', {
+              method:'POST', headers:{'X-API-KEY':localStorage.getItem('serper_api_key'),'Content-Type':'application/json'},
+              body:JSON.stringify({q: `${obj.name} มือสอง site:shopee.co.th OR site:ebay.com OR site:facebook.com`, gl:'th', hl:'th'})
+          });
+          const sData = await sRes.json();
+          if(sData.organic && sData.organic.length) {
+              const snippets = sData.organic.map(o => `${o.title} ${o.snippet}`).join('\n');
+              marketDataStr += snippets;
+          }
+      } catch(se) { console.error('Serper error', se); }
+  }
+
+  if(document.getElementById('f_ev')) document.getElementById('f_ev').value = marketDataStr;
+  parseEv();
+  document.getElementById('drop').innerHTML=`<img src="${b64}" class="absolute inset-0 h-full w-full object-cover"><div class="absolute bottom-3 right-3 text-[10px] px-2 py-1 bg-emerald-500 text-white rounded-full font-bold">✓ สแกนสำเร็จ</div>`;
+  toast('สแกนเสร็จสิ้น!');
+
+  if(!V('f_price')) {
+      setTimeout(()=>{
+          const p = prompt(`วิเคราะห์เจอ: ${obj.name}\n\n👉 แม่ค้าขายราคาเท่าไหร่ครับ (บาท)?`);
+          if(p && !isNaN(p)) {
+              document.getElementById('f_price').value = p;
+              analyze();
+          }
+      }, 300);
+  } else {
+      analyze();
+  }
+ }catch(e){
+  console.error(e); alert('เกิดข้อผิดพลาด: '+e.message);
+  document.getElementById('drop').innerHTML=`<img src="${b64}" class="absolute inset-0 h-full w-full object-cover">`;
+  if(e.message.includes('API key')) localStorage.removeItem('gemini_api_key');
+ }
+}
+function parseEv(){pending=AI.parseEvidence(V('f_ev'));rerenderEv();}
+function rerenderEv(){document.getElementById('evList').innerHTML=EvList();}
+
+function analyze(){
+ const raw={name:V('f_name'),brand:V('f_brand'),model:V('f_model'),price:+V('f_price'),km:+V('f_km')||0,loc:V('f_loc'),
+ transport:V('f_transport'),repair:V('f_repair'),cleaning:V('f_clean'),pack:V('f_pack'),other:V('f_other'),
+ hours:V('f_hours')||2,rate:V('f_rate')||300,seller:V('f_seller'),sellerPhone:V('f_phone')};
+ if(!raw.price)return toast('กรุณากรอกราคาที่เจ้าของขาย');
+ const hasReceipt=document.getElementById('chk_receipt')?document.getElementById('chk_receipt').checked:false;
+ const id=AI.identify({name:raw.name,brand:raw.brand,model:raw.model});
+ const sim=Learn.similar(id.brand,id.model);const usedAI=sim.exact.length<3;Store.trackAI(usedAI);
+ const useEv=pending.length?pending:AI.market(id,[]);
+ const E=Engine.evidence(useEv);let val=Engine.valuation(E,cond),priceSource=E.tier==='none'?'none':'ai';let waterfall=null;
+ if(sim.exact.length){const blend=Learn.blendedPrice(val.mid,sim);const mid=blend.mid;
+ val={low:val.low||mid*.85,mid,high:val.high||mid*1.15,fairBuy:mid*.5,maxBuy:mid*.65,target:mid*.92};
+ priceSource=blend.source;waterfall={n:sim.exact.length,avgSell:blend.avgSell};}
+ const d0={cat:id.cat,price:raw.price,km:raw.km,transport:raw.transport||null,repair:raw.repair,cleaning:raw.cleaning,pack:raw.pack,other:raw.other,hours:raw.hours,rate:raw.rate,target:val.target||0};
+ const cost=Engine.cost(d0);const profit=(val.target||0)-cost.total;
+ const risk=Engine.risk({cat:id.cat,conf:E.conf,price:raw.price,cond});
+ let sc=Engine.score({cat:id.cat,cost,profit,price:raw.price,mid:val.mid,risk,cond,conf:E.conf,tier:E.tier,soldN:E.soldN});
+ const skill=Learn.skillMap().find(s=>s.cat===id.cat);let scoreFinal=sc.score;
+ let dec=Engine.decide(sc.score,{price:raw.price,mid:val.mid,soldN:E.soldN,listN:E.listN,conf:E.conf,cat:id.cat,cost,profit,roi:sc.roi,risk});
+ if(skill&&skill.n>=3){if(skill.winRate<50){scoreFinal=Math.max(0,scoreFinal-12);dec.why.push(`⚠️ หมวดนี้สำเร็จแค่ ${skill.winRate.toFixed(0)}% จาก ${skill.n} ดีล → ลดคะแนน`);}
+ else if(skill.winRate>=80){scoreFinal=Math.min(100,scoreFinal+4);dec.why.push(`🏆 หมวดนี้คุณถนัด win rate ${skill.winRate.toFixed(0)}%`);}}
+ const negp=Learn.negativePatterns().find(p=>p.cat===id.cat);
+ if(negp&&raw.km>20)dec.why.push(`🚫 เคยขาดทุนแพทเทิร์นนี้ ${negp.n} ครั้ง: ${negp.note}`);
+ const provenanceFlag=val.mid&&raw.price<val.mid*0.4&&!hasReceipt;
+ if(provenanceFlag)sc.caps.push('ราคาต่ำผิดปกติและไม่มีหลักฐานที่มา → จำกัดคำแนะนำ');
+ let dec2=Engine.decide(scoreFinal,{price:raw.price,mid:val.mid,soldN:E.soldN,listN:E.listN,conf:E.conf,cat:id.cat,cost,profit,roi:sc.roi,risk});
+ if(provenanceFlag&&dec2.decision==='BUY'){dec2.decision='NEGOTIATE';dec2.why.unshift('🚩 ต้องตรวจสอบที่มาก่อน แม้ตัวเลขจะดี');}
+ const annualized=sc.roi*(365/CAT[id.cat].days);const cf=Cash.get();const capitalPct=cf.capital?cost.total/cf.capital*100:0;
+ ana={...id,idConf:id.conf,cond,price:raw.price,km:raw.km,loc:raw.loc,img:imgs[0]||null,createdAt:Date.now(),status:'watching',
+ seller:raw.seller,sellerPhone:raw.sellerPhone,hasReceipt,provenanceFlag,
+ low:val.low,mid:val.mid,high:val.high,fairBuy:val.fairBuy,maxBuy:val.maxBuy,target:val.target,
+ cost,profit,roi:sc.roi,annualized,capitalPct,score:Math.round(scoreFinal),factors:sc.factors,caps:sc.caps,
+ risk,conf:E.conf,tier:E.tier,soldN:E.soldN,listN:E.listN,priceSource,decision:dec2.decision,why:[...dec2.why,...dec.why.slice(4)],buyers:AI.buyers(id.cat,raw.price),waterfall,usedAI};
+ const R=document.getElementById('result');
+ const steps=['ระบุสินค้า','ตรวจสอบประวัติของคุณ','ประเมินมูลค่า','คำนวณต้นทุน','ตรวจสอบความเสี่ยง/ที่มา','สรุปคำตัดสิน'];let i=0;
+ const tick=()=>{if(i<steps.length){R.innerHTML=Card(`<div class="mb-3 text-sm font-bold">กำลังวิเคราะห์...</div>
+ ${steps.map((s,j)=>`<div class="mb-2 flex items-center gap-2 text-xs ${j<i?'text-emerald-400':j===i?'font-semibold':'text-slate-500'}"><span>${j<i?'✓':j===i?'⟳':'○'}</span> ${s}</div>`).join('')}`);
+ i++;setTimeout(tick,200);}else{R.innerHTML=Result(ana);R.scrollIntoView({behavior:'smooth',block:'start'});}};tick();}
+
+function saveDeal(){if(!ana)return;Store.add({...ana,events:[{t:'found',at:Date.now()}]});ana=null;imgs=[];pending=[];toast('บันทึกดีลแล้ว');go('/deals');}
+function addEv(id,t){const amt=['purchased','sold'].includes(t)?+prompt('จำนวนเงิน (฿)')||null:null;
+ Store.event(id,t,amt);const map={contacted:'negotiating',purchased:'purchased',listed:'listed',sold:'sold'};if(map[t])Store.upd(id,{status:map[t]});}
+function saveResult(id){const s=+V('r_sell'),dy=+V('r_days');if(!s)return toast('กรอกราคาขายจริง');const d=Store.get(id);
+ Store.upd(id,{actualSell:s,actualCost:d.cost.total,actualProfit:s-d.cost.total,actualDays:dy||null,lesson:V('r_lesson'),status:'sold'});
+ toast('บันทึกแล้ว — ระบบฉลาดขึ้นแล้ว');}
+function copyL(){const d=Store.get(param),L=AI.listing(d);
+ navigator.clipboard.writeText(`${L.title}\n\n${L.desc}\n\nราคา ${money(L.price)}\n${L.tags.join(' ')}`).then(()=>toast('คัดลอกประกาศแล้ว'));}
+
+/* ============ router ============ */
+function go(p,id){cur=p;param=id||null;if(p==='/deal')tab='overview';window.scrollTo(0,0);render();}
+function updateQuota(){const el=document.getElementById('quota');if(el)el.textContent=quotaText();}
+function render(){Store.load();updateQuota();
+ const nav=p=>NAV.map(([k,l,i])=>{const on=k===cur||(cur==='/deal'&&k==='/deals');
+ if(p==='s')return`<a href="#" onclick="go('${k}')" class="chip flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium ${on?'bg-brand-500/15 text-brand-500':'text-slate-500 hover:bg-black/5'}">${ic(i,'w-4 h-4')} ${l}</a>`;
+ if(k==='/find')return`<a href="#" onclick="go('${k}')" class="tapscale -mt-6 grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-teal-500 text-white shadow-glow">${ic(i,'w-6 h-6')}</a>`;
+ return`<a href="#" onclick="go('${k}')" class="tapscale flex flex-1 flex-col items-center gap-1 py-1 text-[10px] font-medium ${on?'text-brand-500':'text-slate-500'}">${ic(i,'w-5 h-5')}${l}</a>`;}).join('');
+ document.getElementById('side').innerHTML=nav('s');document.getElementById('bot').innerHTML=nav('b');
+ document.getElementById('main').innerHTML=cur==='/'?Dashboard():cur==='/find'?FindDeal():cur==='/deals'?Deals():cur==='/deal'?Detail():Insights();
+ if(window.lucide)lucide.createIcons();}
+render();
+</script></body></html>

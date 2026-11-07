@@ -1,0 +1,11 @@
+# ใช้เมื่อ deploy ด้วยคำสั่ง `npx wrangler deploy` (ไม่จำเป็นถ้าวางโค้ดผ่านหน้าเว็บ Cloudflare)
+name = "deal-hunter"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# ตั้ง secret ด้วย: npx wrangler secret put GEMINI_API_KEY  (และ SERPER_API_KEY, APP_KEY)
+
+# แคชราคา (ไม่บังคับ) — สร้างด้วย npx wrangler kv namespace create CACHE แล้วใส่ id
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "ใส่-id-ที่นี่"

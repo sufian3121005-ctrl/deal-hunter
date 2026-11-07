@@ -1,0 +1,6 @@
+node_modules/
+test/node_modules/
+deploy.ps1
+INSTALL-DealHunter.bat
+ข้อมูลเข้าระบบ.txt
+.env
