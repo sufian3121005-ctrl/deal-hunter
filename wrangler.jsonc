@@ -1,0 +1,11 @@
+{
+  // Cloudflare: เสิร์ฟหน้าเว็บจากโฟลเดอร์ site (ไม่มีโค้ดฝั่งเซิร์ฟเวอร์ หลังบ้านอยู่ที่ Supabase)
+  "name": "deal-hunter",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./site",
+    "not_found_handling": "single-page-application"
+  }
+}
