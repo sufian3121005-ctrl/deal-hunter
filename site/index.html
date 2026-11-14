@@ -227,8 +227,9 @@ const AI={
 /* ============ Store ============ */
 const Store={k:'adh.ui1',d:null,
  load(){try{this.d=JSON.parse(localStorage.getItem(this.k))}catch(e){}
-  if(!this.d||!this.d.deals)this.d=this.seed();
-  this.d.usage=this.d.usage||{used:0,saved:0};this.d.stats=this.d.stats||{totalAnalyzed:9};
+  if(!this.d||!this.d.deals)this.d={deals:[]};
+  if(this.d.deals.some(x=>x.demo)){this.d.deals=this.d.deals.filter(x=>!x.demo);if(this.d.stats&&this.d.stats.totalAnalyzed===9)this.d.stats.totalAnalyzed=0;localStorage.setItem(this.k,JSON.stringify(this.d));}
+  this.d.usage=this.d.usage||{used:0,saved:0};this.d.stats=this.d.stats||{totalAnalyzed:0};
   this.d.settings=this.d.settings||{capital:50000};return this.d},
  save(){localStorage.setItem(this.k,JSON.stringify(this.d));render()},
  all(){return this.d.deals},get(id){return this.d.deals.find(d=>d.id===id)},
@@ -237,7 +238,7 @@ const Store={k:'adh.ui1',d:null,
  event(id,t,amt){const d=this.get(id);d.events.push({t,at:Date.now(),amt});d.updatedAt=Date.now();Sync.mark(id);this.save()},
  trackAI(used){this.d.usage[used?'used':'saved']++;this.d.stats.totalAnalyzed++;localStorage.setItem(this.k,JSON.stringify(this.d));updateQuota();},
  setCapital(v){this.d.settings.capital=+v||0;this.save();},
- reset(){if(confirm('ล้างข้อมูลทั้งหมดและโหลดตัวอย่างใหม่?')){localStorage.removeItem(this.k);this.d=this.seed();this.save()}},
+ reset(){if(confirm('ล้างดีลทั้งหมดในเครื่องนี้? (ดีลที่ซิงก์ขึ้นคลาวด์แล้วจะยังอยู่ในฐานข้อมูล)')){localStorage.removeItem(this.k);this.d={deals:[],usage:{used:0,saved:0},stats:{totalAnalyzed:0},settings:{capital:50000}};this.save()}},
  seed(){const mk=o=>Object.assign({demo:true,id:uid(),createdAt:Date.now()-Math.random()*7e9,events:[{t:'found',at:Date.now()}],buyers:[],caps:[]},o);
   return{usage:{used:0,saved:0},stats:{totalAnalyzed:9},settings:{capital:50000},deals:[
   mk({name:'Makita HR2470 สว่านโรตารี่',brand:'Makita',model:'HR2470',cat:'tools.power',cond:'good',price:3200,km:12,loc:'ลาดพร้าว',
