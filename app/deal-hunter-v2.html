@@ -401,20 +401,22 @@ function FindDeal(){return`<div class="pagefade space-y-4 text-center">
  <button onclick="go('/kb')" class="tapscale mx-auto -mt-2 block text-[11px] font-semibold text-sky-600 underline">📖 คู่มือดูของวินเทจ (ป้ายแต่ละยุค, จุดจับของปลอม)</button>
  ${HuntChips()}
  
- <div onclick="document.getElementById('f_img').click()" class="tapscale mx-auto flex h-56 w-full max-w-sm cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-brand-400 to-teal-600 text-white shadow-glow relative" id="drop">
+ <div onclick="ana?document.getElementById('f_img').click():shootNext()" class="tapscale mx-auto flex h-56 w-full max-w-sm cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-brand-400 to-teal-600 text-white shadow-glow relative" id="drop">
  ${thumbs.length?`<img src="${thumbs[0]}" class="absolute inset-0 h-full w-full object-cover">`:`
   <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-  <div class="font-bold text-base">แตะเพื่อถ่ายรูป</div>
+  <div class="font-bold text-base">แตะเพื่อถ่ายรูปแรก</div>
+  <div class="text-[11px] font-medium opacity-90">${(SHOTS[shotCat]||SHOTS.generic)[0]} — แล้วถ่ายตามรายการด้านล่าง</div>
   <div class="text-[11px] font-medium opacity-80 bg-black/10 px-3 py-1 rounded-full">AI บอกราคา · เช็คของแท้ · ที่ขาย</div>
  `}</div>
  <input type="file" id="f_img" accept="image/*" capture="environment" class="hidden" onchange="upload(this)">
+ <input type="file" id="f_gal" accept="image/*" multiple class="hidden" onchange="upload(this)">
  <input type="file" id="f_img2" accept="image/*" capture="environment" multiple class="hidden" onchange="upload(this,true)">
  <div class="mx-auto max-w-sm text-left">${Inp('q_price','ราคาที่แม่ค้าบอก (฿) — กรอกก่อนหรือหลังถ่ายก็ได้','เช่น 300','','number').replace('<input ','<input inputmode="numeric" oninput="const f=document.getElementById(\'f_price\');if(f)f.value=this.value" ')}</div>
  ${API.url()&&API.key()?'':Card(`<div class="text-left"><div class="text-sm font-bold">ตั้งค่าเซิร์ฟเวอร์ครั้งแรก</div><div class="mt-1 text-xs text-slate-500">ที่อยู่เซิร์ฟเวอร์กรอกไว้ให้แล้ว ใส่แค่รหัสแอป (ครั้งเดียวต่อเครื่อง)</div>
  <div class="mt-3 space-y-2">${Inp('s_url','ที่อยู่เซิร์ฟเวอร์ (ไม่ต้องแก้)','https://deal-hunter.xxx.workers.dev',API.url())}${Inp('s_key','รหัสแอป (ค่า APP_KEY ในตาราง app_config ของ Supabase)','')}</div>
  <button onclick="saveSetup()" class="tapscale mt-3 w-full rounded-xl bg-brand-500 py-2.5 text-sm font-bold text-white">บันทึก</button></div>`,'ring-2 ring-amber-500/40')}
  <div class="text-center mt-3"><button onclick="document.getElementById('manual_entry').open = true; document.getElementById('manual_entry').scrollIntoView({behavior:'smooth'})" class="text-xs font-semibold text-slate-500 underline decoration-slate-300 underline-offset-4">หรือ พิมพ์ข้อมูลเองโดยไม่ใช้กล้อง</button></div>
- <div id="result" class="space-y-3 mt-6 text-left">${ana?Result(ana):''}</div>
+ <div id="result" class="space-y-3 mt-6 text-left">${ana?Result(ana):Tray()}</div>
 
  <details id="manual_entry" class="group mt-6 rounded-3xl bg-black/5 p-4 text-left dark:bg-white/5">
  <summary class="cursor-pointer font-bold outline-none flex justify-between items-center text-sm text-slate-700 dark:text-slate-300"><span>✍️ พิมพ์ข้อมูลเอง / แก้ไข (Manual)</span><span class="opacity-50 group-open:rotate-180 transition">▼</span></summary>
@@ -575,17 +577,80 @@ function Insights(){const d=Learn.history();const skill=Learn.skillMap(),neg=Lea
 function setCond(c){cond=c;document.querySelectorAll('.cbtn').forEach(b=>{const on=b.dataset.c===c;
  b.className=`cbtn chip rounded-full px-3.5 py-1.5 text-xs font-medium ${on?'bg-brand-500 text-white':'bg-black/5 text-slate-500 dark:bg-white/5'}`});}
 /* ============ Scan via backend (Cloudflare Worker) ============ */
-let scan=null,thumbs=[],labels=[],hand={},nextLabel='',refsCache={},confirmRef=false;
+let scan=null,thumbs=[],labels=[],hand={},nextLabel='',refsCache={},confirmRef=false,photoWarn=[],replaceIdx=null;
+const MAX_PHOTOS=10;
+/* รายการรูปที่ควรถ่าย แยกตามประเภทสินค้า (ถ่ายตามลำดับ แล้วค่อยให้ AI วิเคราะห์) */
+const SHOTS={
+ 'apparel.vintage':['ภาพรวมด้านหน้า (เห็นลายทั้งตัว)','ป้ายคอ (ให้อ่านตัวหนังสือได้)','ป้ายวิธีซัก/เลข RN','ตะเข็บปลายแขนหรือชายเสื้อ (ด้านใน)','ปีลิขสิทธิ์ © ใต้ลายสกรีน','ด้านหลัง'],
+ 'apparel.denim':['ภาพรวมด้านหน้า','แท็บแดง/ป้ายหลังเอว','ป้ายวิธีซัก (รหัสวันที่)','ตะเข็บข้างขาด้านใน (ผ้าริม)','หลังกระดุมเม็ดบน/หมุด'],
+ 'apparel.football':['ภาพรวมด้านหน้า','ป้ายรหัสสินค้าด้านใน','ป้ายคอด้านใน','โลโก้แบรนด์และตราสโมสรใกล้ๆ','ด้านหลัง (ชื่อ/เบอร์)'],
+ 'shoes.brand':['ภาพรวมด้านข้าง','ป้ายในลิ้น (รหัสรุ่น)','พื้นรองเท้า','ส้นด้านหลัง','ป้ายกล่อง (ถ้ามี)'],
+ 'luxury':['ภาพรวม','โลโก้ใกล้ๆ','รหัสผลิต/serial/date code','อะไหล่โลหะ/ซิป','ด้านใน/ฝาหลัง'],
+ 'tools.power':['ภาพรวมตัวเครื่อง','เพลทรุ่น/serial','แบตเตอรี่ (ด้านบนและด้านใต้)','ช่องระบายลม/หัวจับดอก','สายไฟ/ปลั๊ก'],
+ 'phone':['ด้านหน้า (เปิดจอ)','ด้านหลัง','หน้าเกี่ยวกับเครื่อง/IMEI','สุขภาพแบตเตอรี่','ประวัติชิ้นส่วนและการซ่อม (iPhone)'],
+ 'generic':['ภาพรวม','ป้าย/โลโก้','รุ่น/serial (ถ้ามี)','ด้านหลัง/ด้านใน']};
+const SHOT_CATS=[['apparel.vintage','👕 เสื้อวินเทจ'],['apparel.denim','👖 ยีนส์/แจ็คเก็ต'],['apparel.football','⚽ เสื้อบอล'],['shoes.brand','👟 รองเท้า'],
+ ['luxury','👜 แบรนด์เนม/นาฬิกา'],['tools.power','🔧 เครื่องมือช่าง'],['phone','📱 มือถือ'],['generic','❓ อื่นๆ/ไม่แน่ใจ']];
+const DEFECT='ตำหนิ (รู/คราบ/ขาด/สึก)';
+let shotCat=(()=>{try{return localStorage.getItem('deal_shotcat')||'apparel.vintage'}catch(e){return'apparel.vintage'}})();
+const shotList=()=>SHOTS[shotCat]||SHOTS.generic;
+const nextShot=()=>shotList().find(k=>!labels.includes(k))||'';
+function setShotCat(c){shotCat=c;try{localStorage.setItem('deal_shotcat',c)}catch(e){}renderDrop(false);renderTray();}
+function shootKind(k){if(imgs.length>=MAX_PHOTOS)return toast('ครบ '+MAX_PHOTOS+' รูปแล้ว ลบรูปที่ไม่จำเป็นก่อน');
+ const i=labels.indexOf(k);if(i>=0&&k!==DEFECT){replaceIdx=i;nextLabel='';}else{nextLabel=k;replaceIdx=null;}document.getElementById('f_img').click();}
+function shootNext(){shootKind(nextShot()||DEFECT);}
+function pickGallery(){if(imgs.length>=MAX_PHOTOS)return toast('ครบ '+MAX_PHOTOS+' รูปแล้ว');nextLabel=nextShot()||'มุมเพิ่มเติม';replaceIdx=null;document.getElementById('f_gal').click();}
+function trayRemove(i){imgs.splice(i,1);thumbs.splice(i,1);labels.splice(i,1);photoWarn.splice(i,1);renderDrop(false);renderTray();}
+function trayClear(){imgs=[];thumbs=[];labels=[];photoWarn=[];renderDrop(false);renderTray();}
+function Tray(){
+ const list=shotList();const done=list.filter(k=>labels.includes(k)).length;const nx=nextShot();
+ const row=(k,n)=>{const i=labels.indexOf(k);const ok=i>=0;const isNext=k===nx;
+  return`<div class="flex items-center gap-3 rounded-2xl p-2 ${isNext?'bg-brand-500/10 ring-2 ring-brand-500/40':''}">
+  ${ok?`<img src="${thumbs[i]}" class="h-14 w-14 flex-none rounded-xl object-cover ${photoWarn[i]?'ring-2 ring-amber-500':''}">`
+     :`<div class="grid h-14 w-14 flex-none place-items-center rounded-xl bg-black/5 text-lg font-extrabold text-slate-400 dark:bg-white/10">${n}</div>`}
+  <div class="min-w-0 flex-1"><div class="text-sm font-semibold ${ok?'':'text-slate-600 dark:text-slate-300'}">${ok?'✅ ':''}${k}</div>
+  ${ok&&photoWarn[i]?`<div class="text-[11px] text-amber-600">รูป${photoWarn[i]} — แตะถ่ายใหม่</div>`:isNext?`<div class="text-[11px] font-semibold text-brand-600">← ถ่ายรูปนี้ต่อ</div>`:''}</div>
+  <button onclick="shootKind('${k}')" class="tapscale flex-none rounded-full ${ok?'bg-black/5 dark:bg-white/10':'bg-brand-500 text-white'} px-3 py-1.5 text-xs font-bold">${ok?'ถ่ายใหม่':'📷 ถ่าย'}</button>
+  ${ok?`<button onclick="trayRemove(${i})" class="flex-none px-1 text-slate-400" aria-label="ลบ">✕</button>`:''}</div>`;};
+ const extras=labels.map((l,i)=>[l,i]).filter(([l])=>!list.includes(l));
+ return Card(`<div class="text-sm font-bold">1. ของชิ้นนี้คืออะไร</div>
+ <div class="mt-2 flex flex-wrap gap-1.5">${SHOT_CATS.map(([c,t])=>`<button onclick="setShotCat('${c}')" class="tapscale rounded-full px-3 py-1.5 text-xs font-semibold ${c===shotCat?'bg-brand-500 text-white':'bg-black/5 dark:bg-white/10'}">${t}</button>`).join('')}</div>
+ <div class="mt-4 flex items-center justify-between"><div class="text-sm font-bold">2. ถ่ายตามรายการ (${done}/${list.length})</div>
+ ${imgs.length?`<button onclick="trayClear()" class="text-[11px] text-slate-400 underline">เริ่มใหม่</button>`:''}</div>
+ <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-black/5 dark:bg-white/10"><div class="h-full rounded-full bg-brand-500" style="width:${Math.round(done/list.length*100)}%"></div></div>
+ <div class="mt-2 space-y-1">${list.map((k,n)=>row(k,n+1)).join('')}</div>
+ <div class="mt-4 text-sm font-bold">3. ตำหนิ / มุมอื่น (ถ้ามี)</div>
+ <div class="mt-1 text-[11px] text-slate-500">ถ่ายตำหนิทุกจุด AI จะหักราคาให้ตามสภาพจริง</div>
+ ${extras.length?`<div class="mt-2 flex flex-wrap gap-2">${extras.map(([l,i])=>`<div class="relative"><img src="${thumbs[i]}" class="h-16 w-16 rounded-xl object-cover ${photoWarn[i]?'ring-2 ring-amber-500':''}"><button onclick="trayRemove(${i})" class="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-[10px] text-white">✕</button><div class="mt-0.5 w-16 truncate text-[10px] text-slate-500">${l.split(' ')[0]}</div></div>`).join('')}</div>`:''}
+ <div class="mt-2 flex flex-wrap gap-1.5"><button onclick="shootKind('${DEFECT}')" class="tapscale rounded-full bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-700 dark:text-amber-400">⚠️ ถ่ายตำหนิ</button>
+ <button onclick="shootKind('มุมเพิ่มเติม')" class="tapscale rounded-full bg-black/5 px-3 py-1.5 text-xs font-semibold dark:bg-white/10">📷 มุมอื่น</button>
+ <button onclick="pickGallery()" class="tapscale rounded-full bg-black/5 px-3 py-1.5 text-xs font-semibold dark:bg-white/10">🗂️ จากอัลบั้ม</button></div>
+ <div class="mt-1 text-[10px] text-slate-400">${imgs.length}/${MAX_PHOTOS} รูป</div>
+ ${imgs.length?`<button onclick="analyzeTray()" class="tapscale mt-4 w-full rounded-2xl bg-gradient-to-br from-brand-400 to-teal-600 py-3.5 text-base font-extrabold text-white shadow-glow">🔍 ให้ AI วิเคราะห์ (${imgs.length} รูป)</button>
+ ${done<list.length?`<div class="mt-1.5 text-center text-[11px] text-amber-600">ยังขาด ${list.length-done} รูปในรายการ — วิเคราะห์ได้เลย แต่ผลเช็คของแท้จะมั่นใจน้อยลง</div>`:''}`:''}`);}
+function renderTray(){const R=document.getElementById('result');if(!R)return;R.innerHTML=Tray();if(window.lucide)lucide.createIcons();}
+function analyzeTray(){if(!imgs.length)return toast('ถ่ายรูปก่อน');
+ const order=[...shotList(),DEFECT];const idx=imgs.map((_,i)=>i).sort((a,b)=>{const A=order.indexOf(labels[a]),B=order.indexOf(labels[b]);return (A<0?99:A)-(B<0?99:B)||a-b;});
+ imgs=idx.map(i=>imgs[i]);thumbs=idx.map(i=>thumbs[i]);labels=idx.map(i=>labels[i]);photoWarn=idx.map(i=>photoWarn[i]);
+ const R=document.getElementById('result');if(R)R.innerHTML='';renderDrop(true);window.scrollTo({top:0,behavior:'smooth'});runScan();}
+
 const API={url(){try{return(localStorage.getItem('deal_api_url')||'').replace(/\/$/,'')}catch(e){return''}},key(){try{return localStorage.getItem('deal_app_key')||''}catch(e){return''}}};
 function saveSetup(){localStorage.setItem('deal_api_url',V('s_url'));localStorage.setItem('deal_app_key',V('s_key'));toast('บันทึกการตั้งค่าแล้ว');render();Sync.start();}
 function resizeImg(file,max,q){return new Promise(res=>{const r=new FileReader();r.onload=e=>{const i=new Image();i.onload=()=>{const c=document.createElement('canvas');const s=Math.min(1,max/Math.max(i.width,i.height));
  c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',q));};i.src=e.target.result};r.readAsDataURL(file)});}
 async function upload(el,more){const files=[...el.files];if(!files.length)return;
- if(!more){imgs=[];thumbs=[];labels=[];scan=null;ana=null;pending=[];hand={};}
+ if(!more&&ana){imgs=[];thumbs=[];labels=[];photoWarn=[];scan=null;ana=null;pending=[];hand={};}
+ const tray=!ana;
+ if(imgs.length>=MAX_PHOTOS){el.value='';toast('ครบ '+MAX_PHOTOS+' รูปแล้ว ลบรูปที่ไม่จำเป็นก่อน');return;}
+ if(tray)renderDrop(true,'กำลังเตรียมรูป...');
  const bad=[];
- for(const f of files.slice(0,6-imgs.length)){const big=await resizeImg(f,1280,.82);const q=await photoCheck(big);
-  imgs.push(big);thumbs.push(await resizeImg(f,400,.7));labels.push(more?(nextLabel||'มุมเพิ่มเติม'):'ตัวสินค้าเต็มชิ้น');if(!q.ok)bad.push({i:imgs.length-1,problem:q.problem});}
- el.value='';nextLabel='';
+ for(const f of files.slice(0,MAX_PHOTOS-imgs.length)){const big=await resizeImg(f,1280,.82);const q=await photoCheck(big);
+  const lab=nextLabel||(tray?(nextShot()||'มุมเพิ่มเติม'):'มุมเพิ่มเติม');
+  nextLabel=tray&&nextLabel?'':nextLabel;
+  if(tray&&replaceIdx!==null&&replaceIdx<imgs.length){imgs[replaceIdx]=big;thumbs[replaceIdx]=await resizeImg(f,400,.7);photoWarn[replaceIdx]=q.ok?'':q.problem;replaceIdx=null;continue;}
+  imgs.push(big);thumbs.push(await resizeImg(f,400,.7));labels.push(lab);photoWarn.push(q.ok?'':q.problem);if(!q.ok)bad.push({i:imgs.length-1,problem:q.problem});}
+ el.value='';nextLabel='';replaceIdx=null;
+ if(tray){renderDrop(false);renderTray();return;}
  if(bad.length){renderDrop(false);showBadPhoto(bad,more);return;}
  if(more){renderDrop(false);if(ana){ana.extraPending=(ana.extraPending||0)+1;}const R=document.getElementById('result');if(R&&ana){R.innerHTML=Result(ana);if(window.lucide)lucide.createIcons();}toast('เพิ่มรูปแล้ว — ถ่ายจุดอื่นต่อ หรือกดสแกนใหม่');return;}
  renderDrop(true);await runScan();}
@@ -607,6 +672,7 @@ function renderAfterAdd(){renderDrop(false);const R=document.getElementById('res
 function shootCheckpoint(cp){nextLabel=cp;document.getElementById('f_img2').click();}
 function rescanAll(){if(ana)ana.extraPending=0;renderDrop(true);runScan();window.scrollTo({top:0,behavior:'smooth'});}
 function renderDrop(loading,msg){const d=document.getElementById('drop');if(!d)return;
+ if(!ana&&imgs.length&&!loading){d.innerHTML=`<img src="${thumbs[thumbs.length-1]}" class="absolute inset-0 h-full w-full object-cover opacity-50"><div class="relative z-10 mx-4 rounded-2xl bg-black/60 px-4 py-2 text-center text-sm font-bold text-white">📷 แตะเพื่อถ่าย<br><span class="text-base">${nextShot()||'ตำหนิ/มุมอื่น'}</span></div>`;return;}
  d.innerHTML=(thumbs[0]?`<img src="${thumbs[0]}" class="absolute inset-0 h-full w-full object-cover ${loading?'opacity-50':''}">`:'')+
  (loading?`<div class="relative z-10 rounded-full bg-black/50 px-4 py-2 text-sm font-bold text-white animate-pulse">${msg||'AI กำลังดูรูป...'}</div>`:'')+
  (thumbs.length>1?`<div class="absolute bottom-3 left-3 z-10 flex gap-1">${thumbs.slice(1).map(t=>`<img src="${t}" class="h-10 w-10 rounded-lg object-cover ring-2 ring-white">`).join('')}</div>`:'');}

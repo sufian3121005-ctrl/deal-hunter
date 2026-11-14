@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
 async function scan(env, body) {
   if (!env.GEMINI_API_KEY) throw new Error('ยังไม่ได้ตั้ง GEMINI_API_KEY');
   await loadKB();
-  const images = (body.images || []).slice(0, 6);
+  const images = (body.images || []).slice(0, 10);
   if (!images.length) { const e = new Error('ไม่มีรูป'); e.status = 400; throw e; }
   const labels = body.labels || [];
   const hint = body.hint || {};
@@ -470,7 +470,7 @@ async function saveDealImages(b) {
   if (!b.id || !Array.isArray(b.images)) { const e = new Error('ต้องมี id และ images'); e.status = 400; throw e; }
   const labels = b.labels || [];
   const saved = [];
-  for (let i = 0; i < Math.min(b.images.length, 8); i++) {
+  for (let i = 0; i < Math.min(b.images.length, 10); i++) {
     const { type, bytes } = dataUrlToBytes(b.images[i]);
     const path = `${b.id}/${i}.jpg`;
     const up = await db.storage.from('deal-images').upload(path, bytes, { contentType: type, upsert: true });
