@@ -1,0 +1,23 @@
+{
+  "name": "Deal Hunter — หาของมือสอง เช็คของแท้",
+  "short_name": "Deal Hunter",
+  "description": "ถ่ายรูปของมือสอง ให้ AI เช็คของแท้ ราคาตลาด และกำไร",
+  "lang": "th",
+  "id": "/",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f1f5f9",
+  "theme_color": "#10b981",
+  "categories": ["shopping", "business", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "สแกนของ", "url": "/?source=app", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "ดีลของฉัน", "url": "/?source=app&go=deals", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

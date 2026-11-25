@@ -1,0 +1,17 @@
+const http=require('http'),fs=require('fs'),path=require('path');const {chromium}=require('playwright');
+const root=path.join(__dirname,'../site');const types={'.html':'text/html; charset=utf-8','.js':'application/javascript','.png':'image/png','.webmanifest':'application/manifest+json'};
+const srv=http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?')[0]);if(p==='/')p='/index.html';const f=path.join(root,p);
+ if(fs.existsSync(f)){r.setHeader('content-type',types[path.extname(f)]||'application/octet-stream');r.end(fs.readFileSync(f));}else{r.statusCode=404;r.end()}}).listen(8790);
+const ok=(c,m)=>console.log((c?'PASS ':'FAIL ')+m);
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:390,height:844}});const p=await ctx.newPage();
+ const errs=[];p.on('pageerror',e=>{if(!/tailwind/.test(e.message))errs.push(e.message)});
+ await p.route('**/cdn.tailwindcss.com/**',r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync(__dirname+'/node_modules/@tailwindcss/browser/dist/index.global.js')}));
+ await p.route('**/unpkg.com/**',r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync(__dirname+'/node_modules/lucide/dist/umd/lucide.min.js')}));
+ await p.route('**/fonts.googleapis.com/**',r=>r.fulfill({contentType:'text/css',body:''}));
+ await p.goto('http://localhost:8790/');await p.waitForTimeout(2500);
+ const sw=await p.evaluate(async()=>{const r=await navigator.serviceWorker.getRegistration();return !!(r&&(r.active||r.installing||r.waiting))});ok(sw,'service worker registered');
+ const man=await p.evaluate(async()=>{const r=await fetch('/manifest.webmanifest');const j=await r.json();return j.icons.length+'|'+j.display});ok(man==='3|standalone','manifest ok '+man);
+ const cdp=await ctx.newCDPSession(p);const inst=await cdp.send('Page.getInstallabilityErrors');ok(!inst.installabilityErrors.length,'installable '+JSON.stringify(inst.installabilityErrors));
+ await p.waitForTimeout(1500);await ctx.setOffline(true);await p.reload().catch(()=>{});await p.waitForTimeout(1500);
+ ok((await p.content()).includes('Deal Hunter'),'opens offline');
+ ok(!errs.length,'no js errors '+errs.join('|'));await b.close();srv.close();})();
